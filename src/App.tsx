@@ -7,6 +7,7 @@ import {
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { spaceForQuery } from './initialSpace';
 import { createSpatialField, type SpatialFieldInput } from './spatialField';
+import { loadStoredSpace, saveStoredSpace, type SpaceStorage } from './spaceStorage';
 
 function Wordmark() {
   return (
@@ -18,9 +19,19 @@ function Wordmark() {
 }
 
 export function App() {
-  const [field] = useState(() =>
-    createSpatialField(spaceForQuery(window.location.search)),
-  );
+  const [storage] = useState<SpaceStorage | null>(() => {
+    if (new URLSearchParams(window.location.search).has('debug')) return null;
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  });
+  const [field] = useState(() => {
+    const initialState =
+      loadStoredSpace(storage) ?? spaceForQuery(window.location.search);
+    return createSpatialField(initialState);
+  });
   const [fieldSnapshot, setFieldSnapshot] = useState(field.read);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
   const [draftWorldPosition, setDraftWorldPosition] = useState<DraftPosition | null>(
@@ -30,8 +41,12 @@ export function App() {
   const state = fieldSnapshot.state;
 
   const sendToField = useCallback(
-    (input: SpatialFieldInput) => setFieldSnapshot(field.dispatch(input)),
-    [field],
+    (input: SpatialFieldInput) => {
+      const next = field.dispatch(input);
+      setFieldSnapshot(next);
+      if (shouldPersist(input)) saveStoredSpace(storage, next.state);
+    },
+    [field, storage],
   );
 
   const createThought = (text: string, position: DraftPosition) => {
@@ -102,5 +117,14 @@ export function App() {
         />
       )}
     </>
+  );
+}
+
+function shouldPersist(input: SpatialFieldInput) {
+  return (
+    input.type === 'pointer-up' ||
+    input.type === 'delete-selection' ||
+    input.type === 'edit-thought' ||
+    input.type === 'create-thought'
   );
 }

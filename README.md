@@ -3,6 +3,9 @@
 A spatial canvas for capturing thoughts and discovering connections by bringing them
 together.
 
+Thoughts and their bonds are stored locally in the browser. Add `?debug` to the URL to
+open the sample spatial field without reading or changing the stored field.
+
 [Open Ephermanence](https://geirsagberg.github.io/ephermanence/)
 
 ## Controls
