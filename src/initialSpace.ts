@@ -4,7 +4,7 @@ export const initialSpace: SpaceState = {
   thoughts: [
     {
       id: 'familiarity',
-      text: 'A thought can feel true simply because it is familiar. What if it were new?',
+      text: 'The unexamined life is not worth living.\n— Socrates',
       x: 346,
       y: 230,
       radius: 96,
@@ -12,7 +12,7 @@ export const initialSpace: SpaceState = {
     },
     {
       id: 'rehearsal',
-      text: 'We do not choose every thought that appears, only which ones we rehearse.',
+      text: 'Men are disturbed not by things, but by the views which they take of things.\n— Epictetus',
       x: 531,
       y: 230,
       radius: 96,
@@ -20,7 +20,7 @@ export const initialSpace: SpaceState = {
     },
     {
       id: 'language',
-      text: 'Thinking alone still uses words and questions we learned from other people.',
+      text: 'My experience is what I agree to attend to.\n— William James',
       x: 858,
       y: 468,
       radius: 96,
@@ -28,7 +28,7 @@ export const initialSpace: SpaceState = {
     },
     {
       id: 'action',
-      text: 'A belief becomes visible in what we are prepared to do because of it.',
+      text: 'The heart has its reasons, which reason does not know.\n— Blaise Pascal',
       x: 307,
       y: 504,
       radius: 94,
@@ -36,7 +36,7 @@ export const initialSpace: SpaceState = {
     },
     {
       id: 'doubt',
-      text: 'Doubt is thought refusing to close before it has looked again.',
+      text: 'I think, therefore I am.\n— René Descartes',
       x: 1011,
       y: 202,
       radius: 91,
