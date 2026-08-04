@@ -1,11 +1,14 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
-import type { Attachment, SpaceState, Thought } from '../types';
+import {
+  getMovingThoughtIds,
+  recalculateAttachments,
+  translateThoughts,
+} from '../spaceInteractions';
+import type { SpaceState, Thought } from '../types';
 
 const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
-const ATTACH_HOLD_MS = 680;
-const EXTRACT_HOLD_MS = 620;
 
 type ThoughtSpaceProps = {
   state: SpaceState;
@@ -14,34 +17,11 @@ type ThoughtSpaceProps = {
 };
 
 type DragState = {
-  id: string;
   lastX: number;
   lastY: number;
-  startedAt: number;
-  extracting: boolean;
-  group: Set<string>;
-  touchTarget: string | null;
-  touchStartedAt: number;
+  movingIds: Set<string>;
+  singular: boolean;
 };
-
-function connectedIds(id: string, attachments: Attachment[]) {
-  const result = new Set([id]);
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const [a, b] of attachments) {
-      if (result.has(a) && !result.has(b)) {
-        result.add(b);
-        changed = true;
-      }
-      if (result.has(b) && !result.has(a)) {
-        result.add(a);
-        changed = true;
-      }
-    }
-  }
-  return result;
-}
 
 function bubblePosition(thought: Thought, width: number, height: number) {
   return {
@@ -163,16 +143,12 @@ export function ThoughtSpace({ state, onChange, className = '' }: ThoughtSpacePr
 
             bubble.on('pointerdown', (event) => {
               const point = event.global;
-              const group = connectedIds(thought.id, current.attachments);
+              const singular = event.shiftKey;
               drag = {
-                id: thought.id,
                 lastX: point.x,
                 lastY: point.y,
-                startedAt: performance.now(),
-                extracting: false,
-                group,
-                touchTarget: null,
-                touchStartedAt: 0,
+                movingIds: getMovingThoughtIds(thought.id, current.attachments, singular),
+                singular,
               };
               bubble.cursor = 'grabbing';
             });
@@ -191,90 +167,41 @@ export function ThoughtSpace({ state, onChange, className = '' }: ThoughtSpacePr
           drag.lastY = y;
 
           const current = stateRef.current;
-          const elapsed = performance.now() - drag.startedAt;
-          if (drag.group.size > 1 && elapsed >= EXTRACT_HOLD_MS) drag.extracting = true;
-          const movingIds = drag.extracting ? new Set([drag.id]) : drag.group;
           const width = app.screen.width;
           const height = app.screen.height;
-          let thoughts = current.thoughts.map((thought) => {
-            if (!movingIds.has(thought.id)) return thought;
+          const positionedThoughts = current.thoughts.map((thought) => {
             const position = bubblePosition(thought, width, height);
-            return {
-              ...thought,
-              x: Math.max(
-                thought.radius,
-                Math.min(width - thought.radius, position.x + dx),
-              ),
-              y: Math.max(
-                thought.radius,
-                Math.min(height - thought.radius, position.y + dy),
-              ),
-            };
+            return { ...thought, ...position };
           });
-
-          const moving = thoughts.find((thought) => thought.id === drag!.id)!;
-          const movingPosition = bubblePosition(moving, width, height);
-          let nearest: Thought | null = null;
-          let nearestDistance = Number.POSITIVE_INFINITY;
-          for (const candidate of thoughts) {
-            if (candidate.id === moving.id || movingIds.has(candidate.id)) continue;
-            const candidatePosition = bubblePosition(candidate, width, height);
-            const distance = Math.hypot(
-              candidatePosition.x - movingPosition.x,
-              candidatePosition.y - movingPosition.y,
-            );
-            if (distance < nearestDistance) {
-              nearest = candidate;
-              nearestDistance = distance;
-            }
-          }
-
-          if (nearest) {
-            const contactDistance = moving.radius + nearest.radius - 8;
-            if (nearestDistance < contactDistance + 26) {
-              const targetPosition = bubblePosition(nearest, width, height);
-              const pull = Math.min(0.12, (contactDistance + 26 - nearestDistance) / 180);
-              thoughts = thoughts.map((thought) =>
-                thought.id === moving.id
-                  ? {
-                      ...thought,
-                      x: movingPosition.x + (targetPosition.x - movingPosition.x) * pull,
-                      y: movingPosition.y + (targetPosition.y - movingPosition.y) * pull,
-                    }
-                  : thought,
-              );
-            }
-            if (nearestDistance <= contactDistance + 5) {
-              if (drag.touchTarget !== nearest.id) {
-                drag.touchTarget = nearest.id;
-                drag.touchStartedAt = performance.now();
-              } else if (performance.now() - drag.touchStartedAt >= ATTACH_HOLD_MS) {
-                const exists = current.attachments.some(
-                  ([a, b]) =>
-                    (a === moving.id && b === nearest!.id) ||
-                    (a === nearest!.id && b === moving.id),
-                );
-                if (!exists)
-                  current.attachments = [...current.attachments, [moving.id, nearest.id]];
-              }
-            } else {
-              drag.touchTarget = null;
-            }
-          }
-
-          let attachments = current.attachments;
-          if (drag.extracting) {
-            attachments = attachments.filter(
-              ([a, b]) => a !== drag!.id && b !== drag!.id,
-            );
-          }
-          const next = { thoughts, attachments };
+          const thoughts = translateThoughts(
+            positionedThoughts,
+            drag.movingIds,
+            dx,
+            dy,
+            width,
+            height,
+          );
+          const next = { thoughts, attachments: current.attachments };
           stateRef.current = next;
           onChangeRef.current(next);
           renderSpace();
         };
 
         const onUp = () => {
+          if (!drag) return;
+          const current = stateRef.current;
+          const next = {
+            ...current,
+            attachments: recalculateAttachments(
+              current.thoughts,
+              current.attachments,
+              drag.movingIds,
+              drag.singular,
+            ),
+          };
+          stateRef.current = next;
+          onChangeRef.current(next);
+          renderSpace();
           drag = null;
         };
 

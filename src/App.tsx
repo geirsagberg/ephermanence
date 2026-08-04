@@ -53,9 +53,9 @@ export function App() {
         </header>
         <ThoughtSpace state={state} onChange={setState} />
         <div className="app-guidance">
-          <span>Move a thought</span>
+          <span>Touch and release to join</span>
           <span className="guidance-dot" />
-          <span>Touch and hold to join</span>
+          <span>Shift-drag to move one</span>
         </div>
         <StateReadout state={state} />
       </main>

@@ -9,7 +9,8 @@
     "build": "vp build",
     "check": "vp check src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts",
     "format": "vp fmt src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts --write",
-    "preview": "vp preview"
+    "preview": "vp preview",
+    "test": "vp test"
   },
   "dependencies": {
     "pixi.js": "^8.19.0",
