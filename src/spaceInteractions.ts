@@ -1,4 +1,17 @@
-import type { Attachment, Thought } from './types';
+import type { Attachment, SpaceState, Thought } from './types';
+
+export function bringThoughtToFront(thoughts: Thought[], id: string) {
+  const selected = thoughts.find((thought) => thought.id === id);
+  if (!selected || thoughts.at(-1)?.id === id) return thoughts;
+  return [...thoughts.filter((thought) => thought.id !== id), selected];
+}
+
+export function deleteThought(state: SpaceState, id: string): SpaceState {
+  return {
+    thoughts: state.thoughts.filter((thought) => thought.id !== id),
+    attachments: state.attachments.filter(([a, b]) => a !== id && b !== id),
+  };
+}
 
 function connectedIds(id: string, attachments: Attachment[]) {
   const result = new Set([id]);

@@ -60,6 +60,7 @@ export function App() {
           state={state}
           onChange={setState}
           onCreateRequest={setDraftPosition}
+          onEmptyClick={() => setDraftPosition(null)}
         />
         <div className="app-guidance">
           <span>Double-click empty space to add</span>

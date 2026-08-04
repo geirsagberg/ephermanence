@@ -1,7 +1,9 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
+  bringThoughtToFront,
+  deleteThought,
   getMovingThoughtIds,
   recalculateAttachments,
   translateThoughts,
@@ -14,10 +16,13 @@ type ThoughtSpaceProps = {
   state: SpaceState;
   onChange: (state: SpaceState) => void;
   onCreateRequest?: (position: { x: number; y: number }) => void;
+  onEmptyClick?: () => void;
   className?: string;
 };
 
 type DragState = {
+  activeId: string;
+  distance: number;
   lastX: number;
   lastY: number;
   movingIds: Set<string>;
@@ -35,16 +40,20 @@ export function ThoughtSpace({
   state,
   onChange,
   onCreateRequest,
+  onEmptyClick,
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const stateRef = useRef(state);
   const onChangeRef = useRef(onChange);
   const onCreateRequestRef = useRef(onCreateRequest);
+  const onEmptyClickRef = useRef(onEmptyClick);
 
   stateRef.current = state;
   onChangeRef.current = onChange;
   onCreateRequestRef.current = onCreateRequest;
+  onEmptyClickRef.current = onEmptyClick;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -153,6 +162,8 @@ export function ThoughtSpace({
               const point = event.global;
               const singular = event.shiftKey;
               drag = {
+                activeId: thought.id,
+                distance: 0,
                 lastX: point.x,
                 lastY: point.y,
                 movingIds: getMovingThoughtIds(thought.id, current.attachments, singular),
@@ -171,6 +182,7 @@ export function ThoughtSpace({
           const y = event.clientY - rect.top;
           const dx = x - drag.lastX;
           const dy = y - drag.lastY;
+          drag.distance += Math.hypot(dx, dy);
           drag.lastX = x;
           drag.lastY = y;
 
@@ -198,6 +210,18 @@ export function ThoughtSpace({
         const onUp = () => {
           if (!drag) return;
           const current = stateRef.current;
+          if (drag.distance < 4) {
+            const next = {
+              ...current,
+              thoughts: bringThoughtToFront(current.thoughts, drag.activeId),
+            };
+            stateRef.current = next;
+            onChangeRef.current(next);
+            setSelectedId(drag.activeId);
+            renderSpace();
+            drag = null;
+            return;
+          }
           const next = {
             ...current,
             attachments: recalculateAttachments(
@@ -226,8 +250,22 @@ export function ThoughtSpace({
           onCreateRequestRef.current?.({ x, y });
         };
 
+        const onCanvasClick = (event: MouseEvent) => {
+          const rect = app.canvas.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
+          const overThought = stateRef.current.thoughts.some((thought) => {
+            const position = bubblePosition(thought, app.screen.width, app.screen.height);
+            return Math.hypot(position.x - x, position.y - y) <= thought.radius;
+          });
+          if (overThought) return;
+          setSelectedId(null);
+          onEmptyClickRef.current?.();
+        };
+
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
+        canvas.addEventListener('click', onCanvasClick);
         canvas.addEventListener('dblclick', onDoubleClick);
         app.renderer.on('resize', renderSpace);
         renderSpace();
@@ -237,6 +275,7 @@ export function ThoughtSpace({
           cleanupSpace: () => {
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
+            canvas?.removeEventListener('click', onCanvasClick);
             canvas?.removeEventListener('dblclick', onDoubleClick);
           },
         });
@@ -254,5 +293,33 @@ export function ThoughtSpace({
     if (canvas) window.dispatchEvent(new Event('resize'));
   }, [state]);
 
-  return <div ref={hostRef} className={`thought-space ${className}`} />;
+  const selectedThought = state.thoughts.find((thought) => thought.id === selectedId);
+  const host = hostRef.current;
+  const selectedPosition =
+    selectedThought && host
+      ? bubblePosition(selectedThought, host.clientWidth, host.clientHeight)
+      : null;
+
+  return (
+    <div ref={hostRef} className={`thought-space ${className}`}>
+      {selectedThought && selectedPosition && (
+        <button
+          className="bubble-delete"
+          style={{
+            left: selectedPosition.x + selectedThought.radius * 0.68,
+            top: selectedPosition.y - selectedThought.radius * 0.68,
+          }}
+          onClick={() => {
+            const next = deleteThought(stateRef.current, selectedThought.id);
+            stateRef.current = next;
+            onChangeRef.current(next);
+            setSelectedId(null);
+          }}
+          aria-label={`Delete thought: ${selectedThought.text}`}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
 }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bringThoughtToFront,
+  deleteThought,
   getMovingThoughtIds,
   recalculateAttachments,
   translateThoughts,
@@ -12,6 +14,35 @@ function thought(id: string, x: number, radius = 50): Thought {
 }
 
 describe('space interactions', () => {
+  it('brings a clicked thought to the front without moving it', () => {
+    const thoughts = [
+      thought('front', 100),
+      thought('middle', 200),
+      thought('back', 300),
+    ];
+
+    expect(bringThoughtToFront(thoughts, 'middle')).toEqual([
+      thought('front', 100),
+      thought('back', 300),
+      thought('middle', 200),
+    ]);
+  });
+
+  it('deletes a thought and all of its attachments', () => {
+    const state = {
+      thoughts: [thought('keep', 100), thought('delete', 200), thought('other', 300)],
+      attachments: [
+        ['keep', 'delete'],
+        ['keep', 'other'],
+      ] satisfies Attachment[],
+    };
+
+    expect(deleteThought(state, 'delete')).toEqual({
+      thoughts: [thought('keep', 100), thought('other', 300)],
+      attachments: [['keep', 'other']],
+    });
+  });
+
   it('moves a dragged bubble by the pointer delta without automatic movement', () => {
     const thoughts = [thought('moving', 100), thought('target', 250)];
 
