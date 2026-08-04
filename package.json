@@ -1,0 +1,26 @@
+{
+  "name": "spacephemeral-prototype",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "bun@1.3.14",
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "check": "vp check src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts",
+    "format": "vp fmt src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts --write",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "pixi.js": "^8.19.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "^6.0.4",
+    "typescript": "latest",
+    "vite-plus": "^0.2.6"
+  }
+}
