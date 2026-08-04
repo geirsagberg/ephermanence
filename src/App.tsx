@@ -12,9 +12,9 @@ import type { SpaceState } from './types';
 
 function Wordmark() {
   return (
-    <div className="wordmark" aria-label="Spacephemeral">
+    <div className="wordmark" aria-label="Ephermanence">
       <span className="wordmark__orb" />
-      <span>spacephemeral</span>
+      <span>ephermanence</span>
     </div>
   );
 }

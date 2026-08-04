@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "spacephemeral-prototype",
+      "name": "ephermanence-prototype",
       "dependencies": {
         "pixi.js": "^8.19.0",
         "react": "^19.2.8",

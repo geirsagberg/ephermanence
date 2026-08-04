@@ -1,4 +1,4 @@
-# Spacephemeral
+# Ephermanence
 
 A canvas-first thought space for capturing unfinished ideas and discovering meaning by
 physically bringing them together.
