@@ -4,16 +4,20 @@ export type DraftPosition = { x: number; y: number };
 
 type SpatialThoughtComposerProps = {
   position: DraftPosition;
+  initialText?: string;
+  label?: string;
   onCancel: () => void;
   onCreate: (text: string) => void;
 };
 
 export function SpatialThoughtComposer({
   position,
+  initialText = '',
+  label = 'New thought at this position',
   onCancel,
   onCreate,
 }: SpatialThoughtComposerProps) {
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
 
   const create = () => {
     const next = text.trim();
@@ -47,7 +51,7 @@ export function SpatialThoughtComposer({
         placeholder="A thought…"
         maxLength={220}
         rows={4}
-        aria-label="New thought at this position"
+        aria-label={label}
       />
       <span>enter keep · esc cancel</span>
     </form>

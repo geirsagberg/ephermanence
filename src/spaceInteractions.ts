@@ -13,6 +13,30 @@ export function deleteThought(state: SpaceState, id: string): SpaceState {
   };
 }
 
+export function thoughtRadius(text: string) {
+  return Math.max(74, Math.min(96, 70 + text.length * 0.35));
+}
+
+export function editThought(
+  state: SpaceState,
+  id: string,
+  text: string,
+  width: number,
+  height: number,
+): SpaceState {
+  const thoughts = state.thoughts.map((thought) => ({
+    ...thought,
+    x: thought.x <= 1 ? thought.x * width : thought.x,
+    y: thought.y <= 1 ? thought.y * height : thought.y,
+    ...(thought.id === id ? { text, radius: thoughtRadius(text) } : {}),
+  }));
+
+  return {
+    thoughts,
+    attachments: recalculateAttachments(thoughts, state.attachments, new Set([id]), true),
+  };
+}
+
 function connectedIds(id: string, attachments: Attachment[]) {
   const result = new Set([id]);
   let changed = true;

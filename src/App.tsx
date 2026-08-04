@@ -7,6 +7,7 @@ import {
 } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { initialSpace } from './initialSpace';
+import { editThought, thoughtRadius } from './spaceInteractions';
 import type { SpaceState } from './types';
 
 function Wordmark() {
@@ -31,6 +32,7 @@ function StateReadout({ state }: { state: SpaceState }) {
 export function App() {
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [state, setState] = useState<SpaceState>(initialSpace);
 
   const createThought = (text: string, position?: DraftPosition) => {
@@ -39,11 +41,12 @@ export function App() {
       text,
       x: position?.x ?? 0.76,
       y: position?.y ?? 0.72,
-      radius: Math.max(74, Math.min(96, 70 + text.length * 0.35)),
+      radius: thoughtRadius(text),
       tone: state.thoughts.length % 5,
     };
     setState((current) => ({ ...current, thoughts: [...current.thoughts, nextThought] }));
     setDraftPosition(null);
+    setEditingId(null);
     setQuickCaptureOpen(false);
   };
 
@@ -60,7 +63,14 @@ export function App() {
           state={state}
           onChange={setState}
           onCreateRequest={setDraftPosition}
-          onEmptyClick={() => setDraftPosition(null)}
+          onEditRequest={(thought, position) => {
+            setDraftPosition(position);
+            setEditingId(thought.id);
+          }}
+          onEmptyClick={() => {
+            setDraftPosition(null);
+            setEditingId(null);
+          }}
         />
         <div className="app-guidance">
           <span>Double-click empty space to add</span>
@@ -71,9 +81,35 @@ export function App() {
       </main>
       {draftPosition && (
         <SpatialThoughtComposer
+          key={editingId ?? 'new'}
           position={draftPosition}
-          onCancel={() => setDraftPosition(null)}
-          onCreate={(text) => createThought(text, draftPosition)}
+          initialText={
+            editingId
+              ? state.thoughts.find((thought) => thought.id === editingId)?.text
+              : undefined
+          }
+          label={editingId ? 'Edit thought' : undefined}
+          onCancel={() => {
+            setDraftPosition(null);
+            setEditingId(null);
+          }}
+          onCreate={(text) => {
+            if (!editingId) {
+              createThought(text, draftPosition);
+              return;
+            }
+            setState((current) =>
+              editThought(
+                current,
+                editingId,
+                text,
+                window.innerWidth,
+                window.innerHeight,
+              ),
+            );
+            setDraftPosition(null);
+            setEditingId(null);
+          }}
         />
       )}
       <QuickCapture

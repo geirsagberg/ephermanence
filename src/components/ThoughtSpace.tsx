@@ -16,6 +16,7 @@ type ThoughtSpaceProps = {
   state: SpaceState;
   onChange: (state: SpaceState) => void;
   onCreateRequest?: (position: { x: number; y: number }) => void;
+  onEditRequest?: (thought: Thought, position: { x: number; y: number }) => void;
   onEmptyClick?: () => void;
   className?: string;
 };
@@ -40,6 +41,7 @@ export function ThoughtSpace({
   state,
   onChange,
   onCreateRequest,
+  onEditRequest,
   onEmptyClick,
   className = '',
 }: ThoughtSpaceProps) {
@@ -48,11 +50,13 @@ export function ThoughtSpace({
   const stateRef = useRef(state);
   const onChangeRef = useRef(onChange);
   const onCreateRequestRef = useRef(onCreateRequest);
+  const onEditRequestRef = useRef(onEditRequest);
   const onEmptyClickRef = useRef(onEmptyClick);
 
   stateRef.current = state;
   onChangeRef.current = onChange;
   onCreateRequestRef.current = onCreateRequest;
+  onEditRequestRef.current = onEditRequest;
   onEmptyClickRef.current = onEmptyClick;
 
   useEffect(() => {
@@ -183,6 +187,7 @@ export function ThoughtSpace({
           const dx = x - drag.lastX;
           const dy = y - drag.lastY;
           drag.distance += Math.hypot(dx, dy);
+          if (drag.distance >= 4) setSelectedId(null);
           drag.lastX = x;
           drag.lastY = y;
 
@@ -241,12 +246,23 @@ export function ThoughtSpace({
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
-          const overThought = stateRef.current.thoughts.some((thought) => {
-            const position = bubblePosition(thought, app.screen.width, app.screen.height);
-            return Math.hypot(position.x - x, position.y - y) <= thought.radius;
+          const thought = [...stateRef.current.thoughts].reverse().find((candidate) => {
+            const position = bubblePosition(
+              candidate,
+              app.screen.width,
+              app.screen.height,
+            );
+            return Math.hypot(position.x - x, position.y - y) <= candidate.radius;
           });
-          if (overThought) return;
           event.preventDefault();
+          if (thought) {
+            setSelectedId(null);
+            onEditRequestRef.current?.(
+              thought,
+              bubblePosition(thought, app.screen.width, app.screen.height),
+            );
+            return;
+          }
           onCreateRequestRef.current?.({ x, y });
         };
 

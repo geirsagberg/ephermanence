@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   bringThoughtToFront,
   deleteThought,
+  editThought,
   getMovingThoughtIds,
   recalculateAttachments,
   translateThoughts,
@@ -40,6 +41,24 @@ describe('space interactions', () => {
     expect(deleteThought(state, 'delete')).toEqual({
       thoughts: [thought('keep', 100), thought('other', 300)],
       attachments: [['keep', 'other']],
+    });
+  });
+
+  it('resizes an edited thought and recalculates its attachments', () => {
+    const state = {
+      thoughts: [
+        { ...thought('editing', 100, 96), text: 'A'.repeat(100) },
+        thought('nearby', 270, 80),
+      ],
+      attachments: [['editing', 'nearby']] satisfies Attachment[],
+    };
+
+    expect(editThought(state, 'editing', 'Short', 1_000, 800)).toEqual({
+      thoughts: [
+        { ...thought('editing', 100, 74), text: 'Short' },
+        thought('nearby', 270, 80),
+      ],
+      attachments: [],
     });
   });
 
