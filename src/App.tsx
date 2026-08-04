@@ -8,8 +8,6 @@ import {
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { initialSpace } from './initialSpace';
 import { createSpatialField, type SpatialFieldInput } from './spatialField';
-import type { SpaceState } from './types';
-
 const defaultQuickCapturePosition = { x: 280, y: 150 };
 
 function Wordmark() {
@@ -18,16 +16,6 @@ function Wordmark() {
       <span className="wordmark__orb" />
       <span>ephermanence</span>
     </div>
-  );
-}
-
-function StateReadout({ state }: { state: SpaceState }) {
-  const joined = new Set(state.attachments.flat()).size;
-  return (
-    <p className="state-readout" aria-live="polite">
-      {state.thoughts.length} thoughts · {joined} joined · {state.attachments.length}{' '}
-      bonds
-    </p>
   );
 }
 
@@ -111,17 +99,10 @@ export function App() {
         <div className="app-guidance">
           <span>Double-click empty space to add</span>
           <span className="guidance-dot" />
-          <span>Drag empty space to pan</span>
+          <span>Shift-drag to detach</span>
           <span className="guidance-dot" />
-          <span>Scroll to zoom</span>
-          <span className="guidance-dot" />
-          <span>+ − 0 zoom</span>
-          <span className="guidance-dot" />
-          <span>Shift-drag to move one</span>
-          <span className="guidance-dot" />
-          <span>Enter quick capture</span>
+          <span>Enter to quick capture</span>
         </div>
-        <StateReadout state={state} />
       </main>
       {draftPosition && (
         <SpatialThoughtComposer
