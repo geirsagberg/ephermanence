@@ -2,6 +2,7 @@ import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
+  base: '/ephermanence/',
   plugins: [react()],
   fmt: {
     printWidth: 90,

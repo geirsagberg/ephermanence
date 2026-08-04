@@ -1,26 +1,37 @@
 # Ephermanence
 
-A canvas-first thought space for capturing unfinished ideas and discovering meaning by
-physically bringing them together.
+A spatial canvas for capturing thoughts and discovering connections by bringing them
+together.
 
-## Run
+[Open Ephermanence](https://geirsagberg.github.io/ephermanence/)
+
+## Controls
+
+- Double-click empty space to create a thought.
+- Double-click a thought to edit it; click it to select or delete it.
+- Drag a thought to move its connected group. Shift-drag to move it independently and
+  recalculate its connections.
+- Bring thoughts into contact and release to connect them.
+- Drag empty space to pan. Scroll, `+`, or `-` to zoom; `0` resets zoom.
+- Press Enter to open Quick Capture. Enter saves; Shift+Enter adds a line break; Escape
+  cancels.
+
+## Development
+
+Requires [Bun](https://bun.sh/).
 
 ```sh
 bun install
 bun run dev
 ```
 
-Drag an isolated thought to move it. Bring it into contact with another and release to
-attach; there is no automatic attraction. A connected group moves together.
-Shift-drag a connected thought to move it independently, then its attachments are
-recalculated when released. Use **Quick capture** to add a thought without placing or
-organizing it.
+```sh
+bun run check
+bun run test
+bun run build
+```
 
-Double-click empty space to create a thought there. Type inside the new bubble and
-press Enter to keep it, Shift+Enter for a line break, or Escape to cancel.
-
-The reflection interface follows the selected Drift direction: the spatial field is
-the interface, with quick capture available without requiring organization.
+Pushes to `main` are automatically deployed to GitHub Pages.
 
 ## License
 
