@@ -10,6 +10,7 @@ const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 type ThoughtSpaceProps = {
   state: SpaceState;
   selectedId: string | null;
+  showEmptyHint: boolean;
   onInput: (input: SpatialFieldInput) => void;
   onCreateRequest?: (
     screenPosition: { x: number; y: number },
@@ -23,6 +24,7 @@ type ThoughtSpaceProps = {
 export function ThoughtSpace({
   state,
   selectedId,
+  showEmptyHint,
   onInput,
   onCreateRequest,
   onEditRequest,
@@ -345,6 +347,9 @@ export function ThoughtSpace({
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
+      {state.thoughts.length === 0 && showEmptyHint && (
+        <p className="empty-space-hint">Double click or press Enter</p>
+      )}
       {selectedThought && selectedPosition && (
         <>
           <button

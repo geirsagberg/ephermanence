@@ -5,7 +5,7 @@ import {
   type DraftPosition,
 } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
-import { initialSpace } from './initialSpace';
+import { spaceForQuery } from './initialSpace';
 import { createSpatialField, type SpatialFieldInput } from './spatialField';
 
 function Wordmark() {
@@ -18,7 +18,9 @@ function Wordmark() {
 }
 
 export function App() {
-  const [field] = useState(() => createSpatialField(initialSpace));
+  const [field] = useState(() =>
+    createSpatialField(spaceForQuery(window.location.search)),
+  );
   const [fieldSnapshot, setFieldSnapshot] = useState(field.read);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
   const [draftWorldPosition, setDraftWorldPosition] = useState<DraftPosition | null>(
@@ -53,6 +55,7 @@ export function App() {
         <ThoughtSpace
           state={state}
           selectedId={fieldSnapshot.selectedId}
+          showEmptyHint={draftPosition === null}
           onInput={sendToField}
           onCreateRequest={(screenPosition, worldPosition) => {
             setDraftPosition(screenPosition);
@@ -70,13 +73,6 @@ export function App() {
             setEditingId(null);
           }}
         />
-        <div className="app-guidance">
-          <span>Double-click empty space to add</span>
-          <span className="guidance-dot" />
-          <span>Shift-drag to detach</span>
-          <span className="guidance-dot" />
-          <span>Enter to add at pointer</span>
-        </div>
       </main>
       {draftPosition && (
         <SpatialThoughtComposer

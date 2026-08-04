@@ -68,6 +68,19 @@ textarea:focus-visible {
   cursor: grab;
 }
 
+.empty-space-hint {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  color: rgb(39 48 44 / 42%);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
 .bubble-delete,
 .bubble-grab {
   position: absolute;

@@ -45,3 +45,8 @@ export const initialSpace: SpaceState = {
   ],
   attachments: [['1', '2']],
 };
+
+export function spaceForQuery(search: string): SpaceState {
+  if (new URLSearchParams(search).has('debug')) return initialSpace;
+  return { thoughts: [], attachments: [] };
+}
