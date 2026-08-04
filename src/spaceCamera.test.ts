@@ -90,6 +90,33 @@ describe('space camera navigation', () => {
     expect(pinchCamera.read().zoom).toBeCloseTo(Math.exp(0.6));
   });
 
+  it('zooms and pans around the moving midpoint of a touch pinch', () => {
+    const camera = createSpaceCamera({ x: -120, y: 80, zoom: 1 });
+    const startingMidpoint = { x: 200, y: 100 };
+    const worldAnchor = camera.screenToWorld(startingMidpoint);
+
+    camera.dispatch({
+      type: 'pinch-start',
+      points: [
+        { x: 100, y: 100 },
+        { x: 300, y: 100 },
+      ],
+    });
+    const moved = camera.dispatch({
+      type: 'pinch-move',
+      points: [
+        { x: 50, y: 120 },
+        { x: 350, y: 120 },
+      ],
+    });
+
+    expect(moved).toMatchObject({ handled: true, navigated: true });
+    expect(camera.read().zoom).toBeCloseTo(1.5);
+    expect(camera.worldToScreen(worldAnchor).x).toBeCloseTo(200);
+    expect(camera.worldToScreen(worldAnchor).y).toBeCloseTo(120);
+    expect(camera.dispatch({ type: 'pinch-end' }).handled).toBe(true);
+  });
+
   it('owns keyboard zoom and reset around the viewport center', () => {
     const camera = createSpaceCamera({ x: -300, y: 140, zoom: 2 });
     const center = { x: 640, y: 360 };

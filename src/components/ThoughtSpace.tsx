@@ -61,6 +61,9 @@ export function ThoughtSpace({
     let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
     let destroyed = false;
     let pointerPosition: { x: number; y: number } | null = null;
+    const touchPoints = new Map<number, { x: number; y: number }>();
+    let pinchGesture = false;
+    let pinchActive = false;
     let renderSpace = () => {};
     const destroyApp = () => {
       if (destroyed) return;
@@ -184,6 +187,22 @@ export function ThoughtSpace({
           pointerPosition =
             x >= 0 && y >= 0 && x <= rect.width && y <= rect.height ? { x, y } : null;
 
+          if (event.pointerType === 'touch' && touchPoints.has(event.pointerId)) {
+            touchPoints.set(event.pointerId, { x, y });
+            if (pinchActive) {
+              const points = [...touchPoints.values()];
+              if (points.length === 2) {
+                camera.dispatch({
+                  type: 'pinch-move',
+                  points: [points[0], points[1]],
+                });
+                renderSpace();
+              }
+              return;
+            }
+            if (pinchGesture) return;
+          }
+
           const cameraMove = camera.dispatch({ type: 'pointer-move', point: { x, y } });
           if (cameraMove.handled) {
             if (cameraMove.navigated) {
@@ -200,7 +219,20 @@ export function ThoughtSpace({
           });
         };
 
-        const onUp = () => {
+        const onUp = (event: PointerEvent) => {
+          if (event.pointerType === 'touch' && touchPoints.has(event.pointerId)) {
+            touchPoints.delete(event.pointerId);
+            if (pinchGesture) {
+              if (pinchActive && touchPoints.size < 2) {
+                camera.dispatch({ type: 'pinch-end' });
+                pinchActive = false;
+              }
+              if (touchPoints.size === 0) pinchGesture = false;
+              if (canvas) canvas.style.cursor = 'pointer';
+              return;
+            }
+          }
+
           const cameraUp = camera.dispatch({ type: 'pointer-up' });
           if (cameraUp.handled) {
             if (canvas) canvas.style.cursor = 'pointer';
@@ -252,6 +284,27 @@ export function ThoughtSpace({
             x: event.clientX - rect.left,
             y: event.clientY - rect.top,
           };
+
+          if (event.pointerType === 'touch') {
+            if (touchPoints.size >= 2) return;
+            touchPoints.set(event.pointerId, point);
+            if (touchPoints.size === 2) {
+              const points = [...touchPoints.values()];
+              pinchGesture = true;
+              pinchActive = true;
+              camera.dispatch({ type: 'pointer-up' });
+              onInputRef.current({ type: 'pointer-up' });
+              onInputRef.current({ type: 'clear-selection' });
+              onEmptyClickRef.current?.();
+              camera.dispatch({
+                type: 'pinch-start',
+                points: [points[0], points[1]],
+              });
+              event.preventDefault();
+              return;
+            }
+          }
+
           const worldPoint = camera.screenToWorld(point);
           const overThought = stateRef.current.thoughts.some((thought) => {
             return (
@@ -322,6 +375,7 @@ export function ThoughtSpace({
 
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onUp);
         window.addEventListener('keydown', onKeyDown);
         canvas.addEventListener('click', onCanvasClick);
         canvas.addEventListener('dblclick', onDoubleClick);
@@ -335,6 +389,7 @@ export function ThoughtSpace({
           cleanupSpace: () => {
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onUp);
             window.removeEventListener('keydown', onKeyDown);
             canvas?.removeEventListener('click', onCanvasClick);
             canvas?.removeEventListener('dblclick', onDoubleClick);

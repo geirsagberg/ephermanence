@@ -11,6 +11,9 @@ export type CameraInput =
   | { type: 'pan-start'; point: Point }
   | { type: 'pointer-move'; point: Point }
   | { type: 'pointer-up' }
+  | { type: 'pinch-start'; points: [Point, Point] }
+  | { type: 'pinch-move'; points: [Point, Point] }
+  | { type: 'pinch-end' }
   | { type: 'wheel'; point: Point; deltaY: number; pinching: boolean }
   | { type: 'zoom-key'; key: '+' | '-' | '0'; center: Point }
   | { type: 'viewport-resize'; size: Size };
@@ -26,6 +29,11 @@ type Pan = {
   lastPoint: Point;
 };
 
+type Pinch = {
+  distance: number;
+  midpoint: Point;
+};
+
 export type SpaceCamera = {
   read: () => CameraState;
   dispatch: (input: CameraInput) => CameraTransition;
@@ -38,6 +46,7 @@ export function createSpaceCamera(
 ): SpaceCamera {
   let state = initialState;
   let pan: Pan | null = null;
+  let pinch: Pinch | null = null;
   let viewport: Size | null = null;
 
   const screenToWorld = (point: Point) => ({
@@ -84,6 +93,32 @@ export function createSpaceCamera(
           pan = null;
           return { state, handled: true, navigated: false };
         }
+        case 'pinch-start': {
+          pan = null;
+          pinch = pinchGeometry(input.points);
+          return { state, handled: true, navigated: false };
+        }
+        case 'pinch-move': {
+          if (!pinch) return { state, handled: false, navigated: false };
+          const next = pinchGeometry(input.points);
+          const worldAnchor = screenToWorld(pinch.midpoint);
+          const zoom = Math.max(
+            0.3,
+            Math.min(3, state.zoom * (next.distance / pinch.distance)),
+          );
+          state = {
+            x: next.midpoint.x - worldAnchor.x * zoom,
+            y: next.midpoint.y - worldAnchor.y * zoom,
+            zoom,
+          };
+          pinch = next;
+          return { state, handled: true, navigated: true };
+        }
+        case 'pinch-end': {
+          if (!pinch) return { state, handled: false, navigated: false };
+          pinch = null;
+          return { state, handled: true, navigated: false };
+        }
         case 'wheel': {
           const sensitivity = input.pinching ? 0.006 : 0.002;
           zoomAt(input.point, state.zoom * Math.exp(-input.deltaY * sensitivity));
@@ -112,5 +147,12 @@ export function createSpaceCamera(
         }
       }
     },
+  };
+}
+
+function pinchGeometry([a, b]: [Point, Point]): Pinch {
+  return {
+    distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+    midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
   };
 }
