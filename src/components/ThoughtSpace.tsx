@@ -1,14 +1,6 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 
-import {
-  bringThoughtToFront,
-  bringThoughtToFrontWhenAlone,
-  deleteThought,
-  getMovingThoughtIds,
-  moveThoughtsForPointerDelta,
-  recalculateAttachments,
-} from '../spaceInteractions';
 import {
   screenToWorld,
   setCameraZoomAt,
@@ -16,13 +8,15 @@ import {
   zoomCameraAt,
   type SpaceCamera,
 } from '../spaceCamera';
+import type { SpatialFieldInput } from '../spatialField';
 import type { SpaceState, Thought } from '../types';
 
 const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 
 type ThoughtSpaceProps = {
   state: SpaceState;
-  onChange: (state: SpaceState) => void;
+  selectedId: string | null;
+  onInput: (input: SpatialFieldInput) => void;
   onCreateRequest?: (
     screenPosition: { x: number; y: number },
     worldPosition: { x: number; y: number },
@@ -30,16 +24,6 @@ type ThoughtSpaceProps = {
   onEditRequest?: (thought: Thought, position: { x: number; y: number }) => void;
   onEmptyClick?: () => void;
   className?: string;
-};
-
-type DragState = {
-  activeId: string;
-  distance: number;
-  started: boolean;
-  lastX: number;
-  lastY: number;
-  movingIds: Set<string>;
-  singular: boolean;
 };
 
 type PanState = {
@@ -50,23 +34,23 @@ type PanState = {
 
 export function ThoughtSpace({
   state,
-  onChange,
+  selectedId,
+  onInput,
   onCreateRequest,
   onEditRequest,
   onEmptyClick,
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const cameraRef = useRef<SpaceCamera>({ x: 0, y: 0, zoom: 1 });
   const stateRef = useRef(state);
-  const onChangeRef = useRef(onChange);
+  const onInputRef = useRef(onInput);
   const onCreateRequestRef = useRef(onCreateRequest);
   const onEditRequestRef = useRef(onEditRequest);
   const onEmptyClickRef = useRef(onEmptyClick);
 
   stateRef.current = state;
-  onChangeRef.current = onChange;
+  onInputRef.current = onInput;
   onCreateRequestRef.current = onCreateRequest;
   onEditRequestRef.current = onEditRequest;
   onEmptyClickRef.current = onEmptyClick;
@@ -79,7 +63,6 @@ export function ThoughtSpace({
     let cancelled = false;
     let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
     let destroyed = false;
-    let drag: DragState | null = null;
     let pan: PanState | null = null;
     let renderSpace = () => {};
     const destroyApp = () => {
@@ -175,16 +158,12 @@ export function ThoughtSpace({
 
             bubble.on('pointerdown', (event) => {
               const point = event.global;
-              const singular = event.shiftKey;
-              drag = {
-                activeId: thought.id,
-                distance: 0,
-                started: false,
-                lastX: point.x,
-                lastY: point.y,
-                movingIds: getMovingThoughtIds(thought.id, current.attachments, singular),
-                singular,
-              };
+              onInputRef.current({
+                type: 'thought-pointer-down',
+                id: thought.id,
+                point: { x: point.x, y: point.y },
+                singular: event.shiftKey,
+              });
               bubble.cursor = 'grabbing';
             });
             layer.addChild(bubble);
@@ -207,42 +186,18 @@ export function ThoughtSpace({
               x: cameraRef.current.x + dx,
               y: cameraRef.current.y + dy,
             };
-            if (pan.distance >= 4) setSelectedId(null);
+            if (pan.distance >= 4) {
+              onInputRef.current({ type: 'clear-selection' });
+            }
             renderSpace();
             return;
           }
 
-          if (!drag) return;
-          const dx = x - drag.lastX;
-          const dy = y - drag.lastY;
-          drag.distance += Math.hypot(dx, dy);
-          const dragBegan = !drag.started && drag.distance >= 4;
-          if (dragBegan) {
-            drag.started = true;
-            setSelectedId(null);
-          }
-          drag.lastX = x;
-          drag.lastY = y;
-
-          const current = stateRef.current;
-          const orderedThoughts = dragBegan
-            ? bringThoughtToFrontWhenAlone(
-                current.thoughts,
-                current.attachments,
-                drag.activeId,
-              )
-            : current.thoughts;
-          const thoughts = moveThoughtsForPointerDelta(
-            orderedThoughts,
-            drag.movingIds,
-            dx,
-            dy,
-            cameraRef.current.zoom,
-          );
-          const next = { thoughts, attachments: current.attachments };
-          stateRef.current = next;
-          onChangeRef.current(next);
-          renderSpace();
+          onInputRef.current({
+            type: 'pointer-move',
+            point: { x, y },
+            zoom: cameraRef.current.zoom,
+          });
         };
 
         const onUp = () => {
@@ -251,33 +206,7 @@ export function ThoughtSpace({
             if (canvas) canvas.style.cursor = '';
             return;
           }
-          if (!drag) return;
-          const current = stateRef.current;
-          if (drag.distance < 4) {
-            const next = {
-              ...current,
-              thoughts: bringThoughtToFront(current.thoughts, drag.activeId),
-            };
-            stateRef.current = next;
-            onChangeRef.current(next);
-            setSelectedId(drag.activeId);
-            renderSpace();
-            drag = null;
-            return;
-          }
-          const next = {
-            ...current,
-            attachments: recalculateAttachments(
-              current.thoughts,
-              current.attachments,
-              drag.movingIds,
-              drag.singular,
-            ),
-          };
-          stateRef.current = next;
-          onChangeRef.current(next);
-          renderSpace();
-          drag = null;
+          onInputRef.current({ type: 'pointer-up' });
         };
 
         const onDoubleClick = (event: MouseEvent) => {
@@ -293,7 +222,7 @@ export function ThoughtSpace({
           });
           event.preventDefault();
           if (thought) {
-            setSelectedId(null);
+            onInputRef.current({ type: 'clear-selection' });
             onEditRequestRef.current?.(
               thought,
               worldToScreen(cameraRef.current, thought),
@@ -315,7 +244,7 @@ export function ThoughtSpace({
             );
           });
           if (overThought) return;
-          setSelectedId(null);
+          onInputRef.current({ type: 'clear-selection' });
           onEmptyClickRef.current?.();
         };
 
@@ -346,7 +275,7 @@ export function ThoughtSpace({
             { x: event.clientX - rect.left, y: event.clientY - rect.top },
             event.deltaY,
           );
-          setSelectedId(null);
+          onInputRef.current({ type: 'clear-selection' });
           onEmptyClickRef.current?.();
           renderSpace();
         };
@@ -370,7 +299,7 @@ export function ThoughtSpace({
             center,
             event.key === '0' ? 1 : cameraRef.current.zoom * zoomFactor,
           );
-          setSelectedId(null);
+          onInputRef.current({ type: 'clear-selection' });
           onEmptyClickRef.current?.();
           renderSpace();
         };
@@ -428,10 +357,7 @@ export function ThoughtSpace({
               selectedPosition.y - selectedThought.radius * cameraRef.current.zoom * 0.68,
           }}
           onClick={() => {
-            const next = deleteThought(stateRef.current, selectedThought.id);
-            stateRef.current = next;
-            onChangeRef.current(next);
-            setSelectedId(null);
+            onInputRef.current({ type: 'delete-selection' });
           }}
           aria-label={`Delete thought: ${selectedThought.text}`}
         >

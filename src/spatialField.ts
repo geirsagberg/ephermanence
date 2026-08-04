@@ -1,0 +1,252 @@
+import type { Attachment, SpaceState, Thought } from './types';
+
+export type Point = { x: number; y: number };
+
+export type SpatialFieldInput =
+  | { type: 'thought-pointer-down'; id: string; point: Point; singular: boolean }
+  | { type: 'pointer-move'; point: Point; zoom: number }
+  | { type: 'pointer-up' }
+  | { type: 'clear-selection' }
+  | { type: 'delete-selection' }
+  | { type: 'edit-thought'; id: string; text: string }
+  | { type: 'create-thought'; id: string; text: string; position: Point };
+
+export type SpatialFieldSnapshot = {
+  state: SpaceState;
+  selectedId: string | null;
+};
+
+type Drag = {
+  activeId: string;
+  distance: number;
+  started: boolean;
+  lastPoint: Point;
+  movingIds: Set<string>;
+  singular: boolean;
+};
+
+export type SpatialField = {
+  read: () => SpatialFieldSnapshot;
+  dispatch: (input: SpatialFieldInput) => SpatialFieldSnapshot;
+};
+
+export function createSpatialField(initialState: SpaceState): SpatialField {
+  let state = initialState;
+  let selectedId: string | null = null;
+  let drag: Drag | null = null;
+  let snapshot: SpatialFieldSnapshot = { state, selectedId };
+
+  const read = () => snapshot;
+
+  return {
+    read,
+    dispatch(input) {
+      switch (input.type) {
+        case 'thought-pointer-down': {
+          drag = {
+            activeId: input.id,
+            distance: 0,
+            started: false,
+            lastPoint: input.point,
+            movingIds: input.singular
+              ? new Set([input.id])
+              : connectedThoughtIds(input.id, state.attachments),
+            singular: input.singular,
+          };
+          break;
+        }
+        case 'pointer-move': {
+          if (!drag) break;
+          const dx = input.point.x - drag.lastPoint.x;
+          const dy = input.point.y - drag.lastPoint.y;
+          drag.distance += Math.hypot(dx, dy);
+          const dragBegan = !drag.started && drag.distance >= 4;
+          if (dragBegan) {
+            drag.started = true;
+            selectedId = null;
+          }
+          drag.lastPoint = input.point;
+
+          const thoughts = translateThoughts(
+            dragBegan
+              ? bringThoughtToFrontWhenAlone(
+                  state.thoughts,
+                  state.attachments,
+                  drag.activeId,
+                )
+              : state.thoughts,
+            drag.movingIds,
+            dx / input.zoom,
+            dy / input.zoom,
+          );
+          state = { ...state, thoughts };
+          break;
+        }
+        case 'pointer-up': {
+          if (!drag) break;
+          if (drag.distance < 4) {
+            state = {
+              ...state,
+              thoughts: bringThoughtToFront(state.thoughts, drag.activeId),
+            };
+            selectedId = drag.activeId;
+          } else {
+            state = {
+              ...state,
+              attachments: recalculateAttachments(
+                state.thoughts,
+                state.attachments,
+                drag.movingIds,
+                drag.singular,
+              ),
+            };
+          }
+          drag = null;
+          break;
+        }
+        case 'clear-selection': {
+          selectedId = null;
+          break;
+        }
+        case 'delete-selection': {
+          if (!selectedId) break;
+          state = {
+            thoughts: state.thoughts.filter((thought) => thought.id !== selectedId),
+            attachments: state.attachments.filter(
+              ([a, b]) => a !== selectedId && b !== selectedId,
+            ),
+          };
+          selectedId = null;
+          break;
+        }
+        case 'edit-thought': {
+          const thoughts = state.thoughts.map((thought) => ({
+            ...thought,
+            ...(thought.id === input.id
+              ? { text: input.text, radius: thoughtRadius(input.text) }
+              : {}),
+          }));
+          state = {
+            thoughts,
+            attachments: recalculateAttachments(
+              thoughts,
+              state.attachments,
+              new Set([input.id]),
+              true,
+            ),
+          };
+          break;
+        }
+        case 'create-thought': {
+          state = {
+            ...state,
+            thoughts: [
+              ...state.thoughts,
+              {
+                id: input.id,
+                text: input.text,
+                ...input.position,
+                radius: thoughtRadius(input.text),
+                tone: state.thoughts.length % 5,
+              },
+            ],
+          };
+          selectedId = null;
+          break;
+        }
+      }
+
+      if (state !== snapshot.state || selectedId !== snapshot.selectedId) {
+        snapshot = { state, selectedId };
+      }
+      return snapshot;
+    },
+  };
+}
+
+function bringThoughtToFront(thoughts: Thought[], id: string) {
+  const selected = thoughts.find((thought) => thought.id === id);
+  if (!selected || thoughts.at(-1)?.id === id) return thoughts;
+  return [...thoughts.filter((thought) => thought.id !== id), selected];
+}
+
+function bringThoughtToFrontWhenAlone(
+  thoughts: Thought[],
+  attachments: Attachment[],
+  id: string,
+) {
+  const attached = attachments.some(([a, b]) => a === id || b === id);
+  return attached ? thoughts : bringThoughtToFront(thoughts, id);
+}
+
+function thoughtRadius(text: string) {
+  return Math.max(74, Math.min(96, 70 + text.length * 0.35));
+}
+
+function connectedThoughtIds(id: string, attachments: Attachment[]) {
+  const result = new Set([id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [a, b] of attachments) {
+      if (result.has(a) && !result.has(b)) {
+        result.add(b);
+        changed = true;
+      }
+      if (result.has(b) && !result.has(a)) {
+        result.add(a);
+        changed = true;
+      }
+    }
+  }
+  return result;
+}
+
+function translateThoughts(
+  thoughts: Thought[],
+  movingIds: Set<string>,
+  dx: number,
+  dy: number,
+) {
+  return thoughts.map((thought) =>
+    movingIds.has(thought.id)
+      ? { ...thought, x: thought.x + dx, y: thought.y + dy }
+      : thought,
+  );
+}
+
+function attachmentKey([a, b]: Attachment) {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+function areTouching(a: Thought, b: Thought) {
+  return Math.hypot(b.x - a.x, b.y - a.y) <= a.radius + b.radius;
+}
+
+function recalculateAttachments(
+  thoughts: Thought[],
+  attachments: Attachment[],
+  movedIds: Set<string>,
+  singular: boolean,
+) {
+  const next = singular
+    ? attachments.filter(([a, b]) => !movedIds.has(a) && !movedIds.has(b))
+    : [...attachments];
+  const keys = new Set(next.map(attachmentKey));
+
+  for (let index = 0; index < thoughts.length; index += 1) {
+    const a = thoughts[index];
+    for (let targetIndex = index + 1; targetIndex < thoughts.length; targetIndex += 1) {
+      const b = thoughts[targetIndex];
+      if (movedIds.has(a.id) === movedIds.has(b.id) || !areTouching(a, b)) continue;
+
+      const attachment: Attachment = movedIds.has(a.id) ? [a.id, b.id] : [b.id, a.id];
+      const key = attachmentKey(attachment);
+      if (keys.has(key)) continue;
+      keys.add(key);
+      next.push(attachment);
+    }
+  }
+
+  return next;
+}

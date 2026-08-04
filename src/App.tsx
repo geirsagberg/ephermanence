@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { QuickCapture } from './components/QuickCapture';
 import {
@@ -7,7 +7,7 @@ import {
 } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { initialSpace } from './initialSpace';
-import { editThought, thoughtRadius } from './spaceInteractions';
+import { createSpatialField, type SpatialFieldInput } from './spatialField';
 import type { SpaceState } from './types';
 
 const defaultQuickCapturePosition = { x: 973, y: 518 };
@@ -32,13 +32,20 @@ function StateReadout({ state }: { state: SpaceState }) {
 }
 
 export function App() {
+  const [field] = useState(() => createSpatialField(initialSpace));
+  const [fieldSnapshot, setFieldSnapshot] = useState(field.read);
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
   const [draftWorldPosition, setDraftWorldPosition] = useState<DraftPosition | null>(
     null,
   );
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [state, setState] = useState<SpaceState>(initialSpace);
+  const state = fieldSnapshot.state;
+
+  const sendToField = useCallback(
+    (input: SpatialFieldInput) => setFieldSnapshot(field.dispatch(input)),
+    [field],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -60,15 +67,12 @@ export function App() {
   }, []);
 
   const createThought = (text: string, position?: DraftPosition) => {
-    const nextThought = {
+    sendToField({
+      type: 'create-thought',
       id: `thought-${Date.now()}`,
       text,
-      x: position?.x ?? defaultQuickCapturePosition.x,
-      y: position?.y ?? defaultQuickCapturePosition.y,
-      radius: thoughtRadius(text),
-      tone: state.thoughts.length % 5,
-    };
-    setState((current) => ({ ...current, thoughts: [...current.thoughts, nextThought] }));
+      position: position ?? defaultQuickCapturePosition,
+    });
     setDraftPosition(null);
     setDraftWorldPosition(null);
     setEditingId(null);
@@ -86,7 +90,8 @@ export function App() {
         </header>
         <ThoughtSpace
           state={state}
-          onChange={setState}
+          selectedId={fieldSnapshot.selectedId}
+          onInput={sendToField}
           onCreateRequest={(screenPosition, worldPosition) => {
             setDraftPosition(screenPosition);
             setDraftWorldPosition(worldPosition);
@@ -138,7 +143,7 @@ export function App() {
               createThought(text, draftWorldPosition ?? draftPosition);
               return;
             }
-            setState((current) => editThought(current, editingId, text));
+            sendToField({ type: 'edit-thought', id: editingId, text });
             setDraftPosition(null);
             setDraftWorldPosition(null);
             setEditingId(null);
