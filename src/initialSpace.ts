@@ -4,7 +4,7 @@ export const initialSpace: SpaceState = {
   thoughts: [
     {
       id: 'familiarity',
-      text: 'The unexamined life is not worth living.\n— Socrates',
+      text: 'The unexamined life is not worth living',
       x: 346,
       y: 230,
       radius: 96,
@@ -12,15 +12,15 @@ export const initialSpace: SpaceState = {
     },
     {
       id: 'rehearsal',
-      text: 'Men are disturbed not by things, but by the views which they take of things.\n— Epictetus',
+      text: 'Men are disturbed not by things, but by the views which they take of things',
       x: 531,
-      y: 230,
+      y: 200,
       radius: 96,
       tone: 1,
     },
     {
       id: 'language',
-      text: 'My experience is what I agree to attend to.\n— William James',
+      text: 'My experience is what I agree to attend to',
       x: 858,
       y: 468,
       radius: 96,
@@ -28,7 +28,7 @@ export const initialSpace: SpaceState = {
     },
     {
       id: 'action',
-      text: 'The heart has its reasons, which reason does not know.\n— Blaise Pascal',
+      text: 'The heart has its reasons, which reason does not know',
       x: 307,
       y: 504,
       radius: 94,
@@ -36,7 +36,7 @@ export const initialSpace: SpaceState = {
     },
     {
       id: 'doubt',
-      text: 'I think, therefore I am.\n— René Descartes',
+      text: 'I think, therefore I am',
       x: 1011,
       y: 202,
       radius: 91,
