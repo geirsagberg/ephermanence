@@ -1,13 +1,7 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
-import {
-  screenToWorld,
-  setCameraZoomAt,
-  worldToScreen,
-  zoomCameraAt,
-  type SpaceCamera,
-} from '../spaceCamera';
+import { createSpaceCamera } from '../spaceCamera';
 import type { SpatialFieldInput } from '../spatialField';
 import type { SpaceState, Thought } from '../types';
 
@@ -26,12 +20,6 @@ type ThoughtSpaceProps = {
   className?: string;
 };
 
-type PanState = {
-  distance: number;
-  lastX: number;
-  lastY: number;
-};
-
 export function ThoughtSpace({
   state,
   selectedId,
@@ -42,7 +30,7 @@ export function ThoughtSpace({
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const cameraRef = useRef<SpaceCamera>({ x: 0, y: 0, zoom: 1 });
+  const camera = useRef(createSpaceCamera()).current;
   const stateRef = useRef(state);
   const onInputRef = useRef(onInput);
   const onCreateRequestRef = useRef(onCreateRequest);
@@ -63,7 +51,6 @@ export function ThoughtSpace({
     let cancelled = false;
     let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
     let destroyed = false;
-    let pan: PanState | null = null;
     let renderSpace = () => {};
     const destroyApp = () => {
       if (destroyed) return;
@@ -93,9 +80,9 @@ export function ThoughtSpace({
 
         renderSpace = () => {
           const current = stateRef.current;
-          const camera = cameraRef.current;
-          layer.position.set(camera.x, camera.y);
-          layer.scale.set(camera.zoom);
+          const cameraState = camera.read();
+          layer.position.set(cameraState.x, cameraState.y);
+          layer.scale.set(cameraState.zoom);
           layer.removeChildren().forEach((child) => child.destroy({ children: true }));
 
           const positions = new Map(
@@ -175,18 +162,9 @@ export function ThoughtSpace({
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
 
-          if (pan) {
-            const dx = x - pan.lastX;
-            const dy = y - pan.lastY;
-            pan.distance += Math.hypot(dx, dy);
-            pan.lastX = x;
-            pan.lastY = y;
-            cameraRef.current = {
-              ...cameraRef.current,
-              x: cameraRef.current.x + dx,
-              y: cameraRef.current.y + dy,
-            };
-            if (pan.distance >= 4) {
+          const cameraMove = camera.dispatch({ type: 'pointer-move', point: { x, y } });
+          if (cameraMove.handled) {
+            if (cameraMove.navigated) {
               onInputRef.current({ type: 'clear-selection' });
             }
             renderSpace();
@@ -196,13 +174,13 @@ export function ThoughtSpace({
           onInputRef.current({
             type: 'pointer-move',
             point: { x, y },
-            zoom: cameraRef.current.zoom,
+            zoom: camera.read().zoom,
           });
         };
 
         const onUp = () => {
-          if (pan) {
-            pan = null;
+          const cameraUp = camera.dispatch({ type: 'pointer-up' });
+          if (cameraUp.handled) {
             if (canvas) canvas.style.cursor = '';
             return;
           }
@@ -213,7 +191,7 @@ export function ThoughtSpace({
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
-          const worldPoint = screenToWorld(cameraRef.current, { x, y });
+          const worldPoint = camera.screenToWorld({ x, y });
           const thought = [...stateRef.current.thoughts].reverse().find((candidate) => {
             return (
               Math.hypot(candidate.x - worldPoint.x, candidate.y - worldPoint.y) <=
@@ -223,10 +201,7 @@ export function ThoughtSpace({
           event.preventDefault();
           if (thought) {
             onInputRef.current({ type: 'clear-selection' });
-            onEditRequestRef.current?.(
-              thought,
-              worldToScreen(cameraRef.current, thought),
-            );
+            onEditRequestRef.current?.(thought, camera.worldToScreen(thought));
             return;
           }
           onCreateRequestRef.current?.({ x, y }, worldPoint);
@@ -236,7 +211,7 @@ export function ThoughtSpace({
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
-          const worldPoint = screenToWorld(cameraRef.current, { x, y });
+          const worldPoint = camera.screenToWorld({ x, y });
           const overThought = stateRef.current.thoughts.some((thought) => {
             return (
               Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
@@ -255,7 +230,7 @@ export function ThoughtSpace({
             x: event.clientX - rect.left,
             y: event.clientY - rect.top,
           };
-          const worldPoint = screenToWorld(cameraRef.current, point);
+          const worldPoint = camera.screenToWorld(point);
           const overThought = stateRef.current.thoughts.some((thought) => {
             return (
               Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
@@ -263,18 +238,18 @@ export function ThoughtSpace({
             );
           });
           if (overThought) return;
-          pan = { distance: 0, lastX: point.x, lastY: point.y };
+          camera.dispatch({ type: 'pan-start', point });
           canvas!.style.cursor = 'grabbing';
         };
 
         const onWheel = (event: WheelEvent) => {
           event.preventDefault();
           const rect = app.canvas.getBoundingClientRect();
-          cameraRef.current = zoomCameraAt(
-            cameraRef.current,
-            { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            event.deltaY,
-          );
+          camera.dispatch({
+            type: 'wheel',
+            point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+            deltaY: event.deltaY,
+          });
           onInputRef.current({ type: 'clear-selection' });
           onEmptyClickRef.current?.();
           renderSpace();
@@ -289,16 +264,11 @@ export function ThoughtSpace({
             return;
           }
 
-          const zoomFactor = event.key === '+' ? 1.2 : event.key === '-' ? 1 / 1.2 : 1;
           if (event.key !== '+' && event.key !== '-' && event.key !== '0') return;
 
           event.preventDefault();
           const center = { x: app.screen.width / 2, y: app.screen.height / 2 };
-          cameraRef.current = setCameraZoomAt(
-            cameraRef.current,
-            center,
-            event.key === '0' ? 1 : cameraRef.current.zoom * zoomFactor,
-          );
+          camera.dispatch({ type: 'zoom-key', key: event.key, center });
           onInputRef.current({ type: 'clear-selection' });
           onEmptyClickRef.current?.();
           renderSpace();
@@ -343,7 +313,7 @@ export function ThoughtSpace({
   const selectedThought = state.thoughts.find((thought) => thought.id === selectedId);
   const host = hostRef.current;
   const selectedPosition =
-    selectedThought && host ? worldToScreen(cameraRef.current, selectedThought) : null;
+    selectedThought && host ? camera.worldToScreen(selectedThought) : null;
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
@@ -351,10 +321,8 @@ export function ThoughtSpace({
         <button
           className="bubble-delete"
           style={{
-            left:
-              selectedPosition.x + selectedThought.radius * cameraRef.current.zoom * 0.68,
-            top:
-              selectedPosition.y - selectedThought.radius * cameraRef.current.zoom * 0.68,
+            left: selectedPosition.x + selectedThought.radius * camera.read().zoom * 0.68,
+            top: selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.68,
           }}
           onClick={() => {
             onInputRef.current({ type: 'delete-selection' });
