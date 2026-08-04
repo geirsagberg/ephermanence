@@ -25,7 +25,15 @@ export function zoomCameraAt(
   pointer: Point,
   deltaY: number,
 ): SpaceCamera {
-  const zoom = Math.max(0.3, Math.min(3, camera.zoom * Math.exp(-deltaY * 0.0015)));
+  return setCameraZoomAt(camera, pointer, camera.zoom * Math.exp(-deltaY * 0.0015));
+}
+
+export function setCameraZoomAt(
+  camera: SpaceCamera,
+  pointer: Point,
+  requestedZoom: number,
+): SpaceCamera {
+  const zoom = Math.max(0.3, Math.min(3, requestedZoom));
   const worldPointer = screenToWorld(camera, pointer);
 
   return {

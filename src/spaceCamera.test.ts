@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { screenToWorld, worldToScreen, zoomCameraAt } from './spaceCamera';
+import {
+  screenToWorld,
+  setCameraZoomAt,
+  worldToScreen,
+  zoomCameraAt,
+} from './spaceCamera';
 
 describe('space camera', () => {
   it('keeps the world point under the pointer fixed while zooming', () => {
@@ -17,5 +22,16 @@ describe('space camera', () => {
   it('limits zoom without limiting the world position', () => {
     expect(zoomCameraAt({ x: 0, y: 0, zoom: 1 }, { x: 0, y: 0 }, 100_000).zoom).toBe(0.3);
     expect(zoomCameraAt({ x: 0, y: 0, zoom: 1 }, { x: 0, y: 0 }, -100_000).zoom).toBe(3);
+  });
+
+  it('resets zoom around the viewport center without moving its world point', () => {
+    const camera = { x: -300, y: 140, zoom: 2 };
+    const center = { x: 640, y: 360 };
+    const worldCenter = screenToWorld(camera, center);
+
+    const reset = setCameraZoomAt(camera, center, 1);
+
+    expect(reset.zoom).toBe(1);
+    expect(worldToScreen(reset, worldCenter)).toEqual(center);
   });
 });

@@ -10,6 +10,7 @@ import {
 } from '../spaceInteractions';
 import {
   screenToWorld,
+  setCameraZoomAt,
   worldToScreen,
   zoomCameraAt,
   type SpaceCamera,
@@ -363,8 +364,33 @@ export function ThoughtSpace({
           renderSpace();
         };
 
+        const onKeyDown = (event: KeyboardEvent) => {
+          const target = event.target;
+          if (
+            target instanceof HTMLElement &&
+            target.matches('input, textarea, select, button, [contenteditable="true"]')
+          ) {
+            return;
+          }
+
+          const zoomFactor = event.key === '+' ? 1.2 : event.key === '-' ? 1 / 1.2 : 1;
+          if (event.key !== '+' && event.key !== '-' && event.key !== '0') return;
+
+          event.preventDefault();
+          const center = { x: app.screen.width / 2, y: app.screen.height / 2 };
+          cameraRef.current = setCameraZoomAt(
+            cameraRef.current,
+            center,
+            event.key === '0' ? 1 : cameraRef.current.zoom * zoomFactor,
+          );
+          setSelectedId(null);
+          onEmptyClickRef.current?.();
+          renderSpace();
+        };
+
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
+        window.addEventListener('keydown', onKeyDown);
         canvas.addEventListener('click', onCanvasClick);
         canvas.addEventListener('dblclick', onDoubleClick);
         canvas.addEventListener('pointerdown', onPointerDown);
@@ -377,6 +403,7 @@ export function ThoughtSpace({
           cleanupSpace: () => {
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('keydown', onKeyDown);
             canvas?.removeEventListener('click', onCanvasClick);
             canvas?.removeEventListener('dblclick', onDoubleClick);
             canvas?.removeEventListener('pointerdown', onPointerDown);

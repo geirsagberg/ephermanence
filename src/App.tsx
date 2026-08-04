@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { QuickCapture } from './components/QuickCapture';
 import {
@@ -37,6 +37,25 @@ export function App() {
   );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [state, setState] = useState<SpaceState>(initialSpace);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        event.key !== 'Enter' ||
+        event.repeat ||
+        (target instanceof HTMLElement &&
+          target.matches('input, textarea, select, button, [contenteditable="true"]'))
+      ) {
+        return;
+      }
+      event.preventDefault();
+      setQuickCaptureOpen(true);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const createThought = (text: string, position?: DraftPosition) => {
     const nextThought = {
@@ -89,7 +108,11 @@ export function App() {
           <span className="guidance-dot" />
           <span>Scroll to zoom</span>
           <span className="guidance-dot" />
+          <span>+ − 0 zoom</span>
+          <span className="guidance-dot" />
           <span>Shift-drag to move one</span>
+          <span className="guidance-dot" />
+          <span>Enter quick capture</span>
         </div>
         <StateReadout state={state} />
       </main>

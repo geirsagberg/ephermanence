@@ -41,7 +41,14 @@ export function QuickCapture({ open, onClose, onCapture }: QuickCaptureProps) {
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') submit();
+            if (
+              event.key === 'Enter' &&
+              !event.shiftKey &&
+              !event.nativeEvent.isComposing
+            ) {
+              event.preventDefault();
+              submit();
+            }
             if (event.key === 'Escape') onClose();
           }}
           placeholder="What are you thinking?"
