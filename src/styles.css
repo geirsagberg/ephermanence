@@ -37,11 +37,22 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
-.variant {
+.app-shell {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 48% 43%, rgb(255 255 255 / 65%), transparent 42%),
+    linear-gradient(135deg, #e8e7df, #f2efe7 55%, #e4e8e2);
+}
+
+.app-shell::before {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
+  content: "";
+  pointer-events: none;
 }
 
 .thought-space {
@@ -82,26 +93,6 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
-.quiet-button,
-.capture-button {
-  border: 0;
-  cursor: pointer;
-}
-
-.quiet-button {
-  padding: 9px 14px;
-  border: 1px solid rgb(39 48 44 / 16%);
-  border-radius: 999px;
-  background: rgb(250 249 245 / 56%);
-  font-size: 12px;
-  transition: background 160ms ease;
-  backdrop-filter: blur(10px);
-}
-
-.quiet-button:hover {
-  background: rgb(255 255 255 / 82%);
-}
-
 .state-readout {
   position: absolute;
   z-index: 3;
@@ -113,23 +104,7 @@ textarea:focus-visible {
   letter-spacing: 0.06em;
 }
 
-/* Variant A: the field is the interface. */
-.variant-a {
-  background:
-    radial-gradient(circle at 48% 43%, rgb(255 255 255 / 65%), transparent 42%),
-    linear-gradient(135deg, #e8e7df, #f2efe7 55%, #e4e8e2);
-}
-
-.variant-a::before {
-  position: absolute;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
-  content: "";
-  pointer-events: none;
-}
-
-.a-header,
-.focus-header {
+.app-header {
   position: absolute;
   z-index: 3;
   top: 0;
@@ -142,12 +117,26 @@ textarea:focus-visible {
   pointer-events: none;
 }
 
-.a-header > *,
-.focus-header > * {
+.app-header > * {
   pointer-events: auto;
 }
 
-.a-guidance {
+.quiet-button {
+  padding: 9px 14px;
+  border: 1px solid rgb(39 48 44 / 16%);
+  border-radius: 999px;
+  background: rgb(250 249 245 / 56%);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 160ms ease;
+  backdrop-filter: blur(10px);
+}
+
+.quiet-button:hover {
+  background: rgb(255 255 255 / 82%);
+}
+
+.app-guidance {
   position: absolute;
   z-index: 3;
   bottom: 25px;
@@ -165,165 +154,6 @@ textarea:focus-visible {
   height: 3px;
   border-radius: 50%;
   background: currentColor;
-}
-
-/* Variant B: arrival and reflection are adjacent, but deliberately distinct. */
-.variant-b {
-  display: grid;
-  grid-template-columns: minmax(270px, 31vw) 1fr;
-  background: #dddcd4;
-}
-
-.landing-rail {
-  position: relative;
-  z-index: 4;
-  display: flex;
-  flex-direction: column;
-  padding: 28px 30px 26px;
-  background: #f5f1e9;
-  box-shadow: 12px 0 40px rgb(54 58 51 / 7%);
-}
-
-.landing-copy {
-  max-width: 330px;
-  margin-top: 9vh;
-}
-
-.landing-copy h1 {
-  margin: 14px 0 16px;
-  font-family: "Newsreader", serif;
-  font-size: clamp(32px, 3.2vw, 52px);
-  font-weight: 400;
-  line-height: 0.99;
-  letter-spacing: -0.035em;
-}
-
-.landing-copy > p:last-child {
-  max-width: 290px;
-  color: #727873;
-  font-family: "Newsreader", serif;
-  font-size: 16px;
-  line-height: 1.4;
-}
-
-.arrival-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 4vh;
-}
-
-.arrival {
-  padding: 12px 14px;
-  border-top: 1px solid rgb(39 48 44 / 10%);
-  color: #515954;
-  font-family: "Newsreader", serif;
-  font-size: 14px;
-  line-height: 1.25;
-}
-
-.capture-button {
-  display: flex;
-  justify-content: space-between;
-  margin-top: auto;
-  padding: 14px 16px;
-  border-radius: 10px;
-  background: #303a35;
-  color: #f7f5ee;
-  font-size: 12px;
-}
-
-.capture-button span {
-  color: rgb(247 245 238 / 52%);
-}
-
-.landing-rail .state-readout {
-  position: static;
-  margin-top: 15px;
-}
-
-.landing-canvas {
-  position: relative;
-  min-width: 0;
-  background:
-    radial-gradient(circle at 54% 44%, rgb(255 255 255 / 72%), transparent 50%), #e5e4dd;
-}
-
-.canvas-label {
-  position: absolute;
-  z-index: 3;
-  top: 25px;
-  right: 28px;
-  left: 28px;
-  display: flex;
-  justify-content: space-between;
-  color: rgb(39 48 44 / 46%);
-  font-size: 10px;
-  letter-spacing: 0.06em;
-}
-
-/* Variant C: enter reflection through one legible fragment. */
-.variant-c {
-  background:
-    radial-gradient(circle at 50% 40%, rgb(244 243 236 / 30%), transparent 35%), #cfd2ca;
-}
-
-.variant-c .thought-space {
-  opacity: 0.53;
-  filter: blur(0.35px) saturate(0.75);
-}
-
-.focus-header {
-  color: #424a46;
-}
-
-.focus-card {
-  position: absolute;
-  z-index: 4;
-  top: 50%;
-  left: 50%;
-  width: min(480px, calc(100vw - 48px));
-  padding: 34px 38px 28px;
-  border: 1px solid rgb(255 255 255 / 60%);
-  border-radius: 42% 46% 43% 48% / 35% 40% 44% 42%;
-  background: rgb(249 246 237 / 90%);
-  box-shadow: 0 24px 80px rgb(51 57 52 / 17%);
-  text-align: center;
-  transform: translate(-50%, -50%);
-  backdrop-filter: blur(18px);
-}
-
-.focus-card blockquote {
-  margin: 22px auto 26px;
-  font-family: "Newsreader", serif;
-  font-size: clamp(28px, 3.1vw, 42px);
-  line-height: 1.05;
-  letter-spacing: -0.025em;
-}
-
-.focus-card__nav {
-  display: flex;
-  gap: 18px;
-  align-items: center;
-  justify-content: center;
-  color: #747a75;
-  font-size: 10px;
-}
-
-.focus-card__nav button {
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgb(39 48 44 / 13%);
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
-
-.focus-hint {
-  margin: 22px 0 0;
-  color: #7e837e;
-  font-family: "Newsreader", serif;
-  font-size: 13px;
-  font-style: italic;
 }
 
 /* Capture intentionally replaces the space instead of becoming another panel. */
@@ -396,38 +226,6 @@ textarea:focus-visible {
   cursor: default;
 }
 
-.prototype-switcher {
-  position: fixed;
-  z-index: 30;
-  bottom: 18px;
-  left: 50%;
-  display: grid;
-  grid-template-columns: 36px minmax(130px, auto) 36px;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 999px;
-  background: rgb(26 29 27 / 92%);
-  box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
-  color: #fff;
-  font-size: 10px;
-  text-align: center;
-  transform: translateX(-50%);
-  backdrop-filter: blur(12px);
-}
-
-.prototype-switcher button {
-  height: 36px;
-  border: 0;
-  background: transparent;
-  color: #fff;
-  cursor: pointer;
-}
-
-.prototype-switcher button:hover {
-  background: rgb(255 255 255 / 9%);
-}
-
 @keyframes capture-in {
   from {
     opacity: 0;
@@ -436,70 +234,17 @@ textarea:focus-visible {
 }
 
 @media (max-width: 720px) {
-  .variant-b {
-    grid-template-columns: 1fr;
-  }
-
-  .landing-rail {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    left: 16px;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 14px;
-    padding: 18px;
-    border-radius: 18px;
-    background: rgb(245 241 233 / 90%);
-    backdrop-filter: blur(15px);
-  }
-
-  .landing-copy {
-    margin: 0;
-  }
-
-  .landing-copy .eyebrow,
-  .landing-copy > p,
-  .arrival-list,
-  .landing-rail .state-readout {
-    display: none;
-  }
-
-  .landing-copy h1 {
-    margin: 0;
-    font-size: 22px;
-  }
-
-  .capture-button {
-    align-self: center;
-    margin: 0;
-  }
-
-  .landing-rail > .wordmark {
-    display: none;
-  }
-
-  .canvas-label {
-    top: auto;
-    bottom: 26px;
-  }
-
   .state-readout {
     display: none;
   }
 
-  .a-header,
-  .focus-header {
+  .app-header {
     padding: 18px;
   }
 
-  .a-guidance {
+  .app-guidance {
     bottom: 62px;
     left: 18px;
-  }
-
-  .focus-card {
-    padding: 28px 25px 24px;
   }
 }
 

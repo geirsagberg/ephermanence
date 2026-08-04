@@ -1,13 +1,7 @@
-# Spacephemeral prototype
+# Spacephemeral
 
-A throwaway UI prototype exploring one product question: **can capture feel nearly
-effortless while touch, hold, and pull make relationships understandable?**
-
-Three structurally different reflection spaces live on the same route:
-
-- `?variant=A` — Drift: canvas-first, almost no chrome
-- `?variant=B` — Landing: new thoughts arrive in a quiet side rail
-- `?variant=C` — Focus: reflection begins with one thought at a time
+A canvas-first thought space for capturing unfinished ideas and discovering meaning by
+physically bringing them together.
 
 ## Run
 
@@ -21,5 +15,5 @@ attach. A connected group moves together. Press and hold a connected thought, th
 pull it away to separate it. Use **Quick capture** to add a thought without placing
 or organizing it.
 
-This code is deliberately marked as a prototype. Once a direction wins, rewrite the
-chosen interaction as production code and remove the variants and switcher.
+The reflection interface follows the selected Drift direction: the spatial field is
+the interface, with quick capture available without requiring organization.

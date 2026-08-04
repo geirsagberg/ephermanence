@@ -11,7 +11,6 @@ type ThoughtSpaceProps = {
   state: SpaceState;
   onChange: (state: SpaceState) => void;
   className?: string;
-  mode?: 'open' | 'landing' | 'focus';
 };
 
 type DragState = {
@@ -51,12 +50,7 @@ function bubblePosition(thought: Thought, width: number, height: number) {
   };
 }
 
-export function ThoughtSpace({
-  state,
-  onChange,
-  className = '',
-  mode = 'open',
-}: ThoughtSpaceProps) {
+export function ThoughtSpace({ state, onChange, className = '' }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   const onChangeRef = useRef(onChange);
@@ -138,7 +132,7 @@ export function ThoughtSpace({
 
             const shadow = new Graphics()
               .circle(3, 7, thought.radius + 3)
-              .fill({ color: 0x49504a, alpha: mode === 'focus' ? 0.09 : 0.07 });
+              .fill({ color: 0x49504a, alpha: 0.07 });
             const body = new Graphics()
               .circle(0, 0, thought.radius)
               .fill({ color: palette[thought.tone % palette.length], alpha: 0.96 })
@@ -303,7 +297,7 @@ export function ThoughtSpace({
       canvas?.cleanupSpace?.();
       if (canvas) destroyApp();
     };
-  }, [mode]);
+  }, []);
 
   useEffect(() => {
     const canvas = hostRef.current?.querySelector('canvas');
