@@ -68,29 +68,51 @@ textarea:focus-visible {
   cursor: grab;
 }
 
-.bubble-delete {
+.bubble-delete,
+.bubble-grab {
   position: absolute;
   z-index: 6;
   display: grid;
   width: 28px;
   height: 28px;
   place-items: center;
-  padding: 0 0 2px;
+  padding: 0;
   border: 1px solid rgb(39 48 44 / 18%);
   border-radius: 50%;
   background: rgb(250 248 241 / 92%);
   box-shadow: 0 5px 16px rgb(45 52 48 / 14%);
   color: rgb(39 48 44 / 72%);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
   transform: translate(-50%, -50%);
   backdrop-filter: blur(10px);
 }
 
-.bubble-delete:hover {
+.bubble-delete {
+  padding-bottom: 2px;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.bubble-grab {
+  cursor: grab;
+}
+
+.bubble-delete:hover,
+.bubble-grab:hover {
   background: #fff;
   color: #28312d;
+}
+
+.bubble-grab:active {
+  cursor: grabbing;
+}
+
+.bubble-grab__dots {
+  width: 12px;
+  height: 12px;
+  background-image: radial-gradient(circle, currentcolor 1.25px, transparent 1.5px);
+  background-position: 0 0;
+  background-size: 6px 6px;
 }
 
 .wordmark {

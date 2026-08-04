@@ -318,19 +318,49 @@ export function ThoughtSpace({
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
       {selectedThought && selectedPosition && (
-        <button
-          className="bubble-delete"
-          style={{
-            left: selectedPosition.x + selectedThought.radius * camera.read().zoom * 0.68,
-            top: selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.68,
-          }}
-          onClick={() => {
-            onInputRef.current({ type: 'delete-selection' });
-          }}
-          aria-label={`Delete thought: ${selectedThought.text}`}
-        >
-          ×
-        </button>
+        <>
+          <button
+            className="bubble-delete"
+            style={{
+              left:
+                selectedPosition.x + selectedThought.radius * camera.read().zoom * 0.68,
+              top:
+                selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.68,
+            }}
+            onClick={() => {
+              onInputRef.current({ type: 'delete-selection' });
+            }}
+            aria-label={`Delete thought: ${selectedThought.text}`}
+          >
+            ×
+          </button>
+          <button
+            className="bubble-grab"
+            style={{
+              left: selectedPosition.x,
+              top: selectedPosition.y + selectedThought.radius * camera.read().zoom * 0.9,
+            }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const canvas = hostRef.current?.querySelector('canvas');
+              if (!canvas) return;
+              const rect = canvas.getBoundingClientRect();
+              onInputRef.current({
+                type: 'thought-pointer-down',
+                id: selectedThought.id,
+                point: {
+                  x: event.clientX - rect.left,
+                  y: event.clientY - rect.top,
+                },
+                singular: true,
+              });
+            }}
+            aria-label={`Move thought independently: ${selectedThought.text}`}
+          >
+            <span className="bubble-grab__dots" aria-hidden="true" />
+          </button>
+        </>
       )}
     </div>
   );
