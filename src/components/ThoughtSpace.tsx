@@ -249,6 +249,7 @@ export function ThoughtSpace({
             type: 'wheel',
             point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
             deltaY: event.deltaY,
+            pinching: event.ctrlKey,
           });
           onInputRef.current({ type: 'clear-selection' });
           onEmptyClickRef.current?.();
@@ -329,12 +330,13 @@ export function ThoughtSpace({
       {selectedThought && selectedPosition && (
         <>
           <button
+            title="Delete thought"
             className="bubble-delete"
             style={{
               left:
-                selectedPosition.x + selectedThought.radius * camera.read().zoom * 0.68,
+                selectedPosition.x + selectedThought.radius * camera.read().zoom * 0.69,
               top:
-                selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.68,
+                selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.69,
             }}
             onClick={() => {
               onInputRef.current({ type: 'delete-selection' });
@@ -344,10 +346,12 @@ export function ThoughtSpace({
             ×
           </button>
           <button
+            title="Move thought independently"
             className="bubble-grab"
             style={{
               left: selectedPosition.x,
-              top: selectedPosition.y + selectedThought.radius * camera.read().zoom * 0.9,
+              top:
+                selectedPosition.y + selectedThought.radius * camera.read().zoom * 0.99,
             }}
             onPointerDown={(event) => {
               event.preventDefault();

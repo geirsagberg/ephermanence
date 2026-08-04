@@ -11,7 +11,7 @@ export type CameraInput =
   | { type: 'pan-start'; point: Point }
   | { type: 'pointer-move'; point: Point }
   | { type: 'pointer-up' }
-  | { type: 'wheel'; point: Point; deltaY: number }
+  | { type: 'wheel'; point: Point; deltaY: number; pinching: boolean }
   | { type: 'zoom-key'; key: '+' | '-' | '0'; center: Point }
   | { type: 'viewport-resize'; size: Size };
 
@@ -85,7 +85,8 @@ export function createSpaceCamera(
           return { state, handled: true, navigated: false };
         }
         case 'wheel': {
-          zoomAt(input.point, state.zoom * Math.exp(-input.deltaY * 0.0015));
+          const sensitivity = input.pinching ? 0.006 : 0.002;
+          zoomAt(input.point, state.zoom * Math.exp(-input.deltaY * sensitivity));
           return { state, handled: true, navigated: true };
         }
         case 'zoom-key': {

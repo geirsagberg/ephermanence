@@ -61,7 +61,7 @@ describe('space camera navigation', () => {
     const pointer = { x: 420, y: 260 };
     const worldPoint = camera.screenToWorld(pointer);
 
-    camera.dispatch({ type: 'wheel', point: pointer, deltaY: -240 });
+    camera.dispatch({ type: 'wheel', point: pointer, deltaY: -240, pinching: false });
 
     expect(camera.worldToScreen(worldPoint).x).toBeCloseTo(pointer.x);
     expect(camera.worldToScreen(worldPoint).y).toBeCloseTo(pointer.y);
@@ -71,11 +71,23 @@ describe('space camera navigation', () => {
     const camera = createSpaceCamera();
     const point = { x: 0, y: 0 };
 
-    camera.dispatch({ type: 'wheel', point, deltaY: 100_000 });
+    camera.dispatch({ type: 'wheel', point, deltaY: 100_000, pinching: false });
     expect(camera.read().zoom).toBe(0.3);
 
-    camera.dispatch({ type: 'wheel', point, deltaY: -100_000 });
+    camera.dispatch({ type: 'wheel', point, deltaY: -100_000, pinching: false });
     expect(camera.read().zoom).toBe(3);
+  });
+
+  it('doubles zoom sensitivity for synthesized pinch input', () => {
+    const wheelCamera = createSpaceCamera();
+    const pinchCamera = createSpaceCamera();
+    const point = { x: 0, y: 0 };
+
+    wheelCamera.dispatch({ type: 'wheel', point, deltaY: -100, pinching: false });
+    pinchCamera.dispatch({ type: 'wheel', point, deltaY: -100, pinching: true });
+
+    expect(wheelCamera.read().zoom).toBeCloseTo(Math.exp(0.15));
+    expect(pinchCamera.read().zoom).toBeCloseTo(Math.exp(0.3));
   });
 
   it('owns keyboard zoom and reset around the viewport center', () => {
