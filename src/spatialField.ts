@@ -14,6 +14,8 @@ export type SpatialFieldInput =
 export type SpatialFieldSnapshot = {
   state: SpaceState;
   selectedId: string | null;
+  attachmentCandidateIds: string[];
+  isDragging: boolean;
 };
 
 type Drag = {
@@ -33,8 +35,14 @@ export type SpatialField = {
 export function createSpatialField(initialState: SpaceState): SpatialField {
   let state = initialState;
   let selectedId: string | null = null;
+  let attachmentCandidateIds: string[] = [];
   let drag: Drag | null = null;
-  let snapshot: SpatialFieldSnapshot = { state, selectedId };
+  let snapshot: SpatialFieldSnapshot = {
+    state,
+    selectedId,
+    attachmentCandidateIds,
+    isDragging: false,
+  };
 
   const read = () => snapshot;
 
@@ -43,6 +51,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
     dispatch(input) {
       switch (input.type) {
         case 'thought-pointer-down': {
+          attachmentCandidateIds = [];
           drag = {
             activeId: input.id,
             distance: 0,
@@ -80,6 +89,14 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
             dy / input.zoom,
           );
           state = { ...state, thoughts };
+          attachmentCandidateIds = drag.started
+            ? findAttachmentCandidateIds(
+                thoughts,
+                state.attachments,
+                drag.movingIds,
+                drag.singular,
+              )
+            : [];
           break;
         }
         case 'pointer-up': {
@@ -102,6 +119,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
             };
           }
           drag = null;
+          attachmentCandidateIds = [];
           break;
         }
         case 'clear-selection': {
@@ -156,8 +174,18 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
         }
       }
 
-      if (state !== snapshot.state || selectedId !== snapshot.selectedId) {
-        snapshot = { state, selectedId };
+      if (
+        state !== snapshot.state ||
+        selectedId !== snapshot.selectedId ||
+        attachmentCandidateIds !== snapshot.attachmentCandidateIds ||
+        Boolean(drag?.started) !== snapshot.isDragging
+      ) {
+        snapshot = {
+          state,
+          selectedId,
+          attachmentCandidateIds,
+          isDragging: Boolean(drag?.started),
+        };
       }
       return snapshot;
     },
@@ -223,30 +251,59 @@ function areTouching(a: Thought, b: Thought) {
   return Math.hypot(b.x - a.x, b.y - a.y) <= a.radius + b.radius;
 }
 
+function findAttachmentCandidateIds(
+  thoughts: Thought[],
+  attachments: Attachment[],
+  movedIds: Set<string>,
+  singular: boolean,
+) {
+  const retained = retainAttachments(attachments, movedIds, singular);
+  const additions = findNewAttachments(thoughts, retained, movedIds);
+  return [...new Set(additions.map(([, targetId]) => targetId))];
+}
+
+function retainAttachments(
+  attachments: Attachment[],
+  movedIds: Set<string>,
+  singular: boolean,
+) {
+  return singular
+    ? attachments.filter(([a, b]) => !movedIds.has(a) && !movedIds.has(b))
+    : [...attachments];
+}
+
+function findNewAttachments(
+  thoughts: Thought[],
+  attachments: Attachment[],
+  movedIds: Set<string>,
+) {
+  const keys = new Set(attachments.map(attachmentKey));
+  const additions: Attachment[] = [];
+
+  for (let index = 0; index < thoughts.length; index += 1) {
+    const a = thoughts[index];
+    for (let targetIndex = index + 1; targetIndex < thoughts.length; targetIndex += 1) {
+      const b = thoughts[targetIndex];
+      const aIsMoving = movedIds.has(a.id);
+      if (aIsMoving === movedIds.has(b.id) || !areTouching(a, b)) continue;
+
+      const attachment: Attachment = aIsMoving ? [a.id, b.id] : [b.id, a.id];
+      const key = attachmentKey(attachment);
+      if (keys.has(key)) continue;
+      keys.add(key);
+      additions.push(attachment);
+    }
+  }
+
+  return additions;
+}
+
 function recalculateAttachments(
   thoughts: Thought[],
   attachments: Attachment[],
   movedIds: Set<string>,
   singular: boolean,
 ) {
-  const next = singular
-    ? attachments.filter(([a, b]) => !movedIds.has(a) && !movedIds.has(b))
-    : [...attachments];
-  const keys = new Set(next.map(attachmentKey));
-
-  for (let index = 0; index < thoughts.length; index += 1) {
-    const a = thoughts[index];
-    for (let targetIndex = index + 1; targetIndex < thoughts.length; targetIndex += 1) {
-      const b = thoughts[targetIndex];
-      if (movedIds.has(a.id) === movedIds.has(b.id) || !areTouching(a, b)) continue;
-
-      const attachment: Attachment = movedIds.has(a.id) ? [a.id, b.id] : [b.id, a.id];
-      const key = attachmentKey(attachment);
-      if (keys.has(key)) continue;
-      keys.add(key);
-      next.push(attachment);
-    }
-  }
-
-  return next;
+  const retained = retainAttachments(attachments, movedIds, singular);
+  return [...retained, ...findNewAttachments(thoughts, retained, movedIds)];
 }

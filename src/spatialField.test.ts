@@ -85,11 +85,12 @@ describe('spatial field transitions', () => {
     );
 
     startDrag(spatialField, 'moving', { x: 0, y: 0 }, true);
-    spatialField.dispatch({
+    const moving = spatialField.dispatch({
       type: 'pointer-move',
       point: { x: 5, y: 0 },
       zoom: 1,
     });
+    expect(moving.attachmentCandidateIds).toEqual(['new']);
     const snapshot = spatialField.dispatch({ type: 'pointer-up' });
 
     expect(snapshot.state.thoughts).toEqual([
@@ -101,6 +102,27 @@ describe('spatial field transitions', () => {
       ['old', 'new'],
       ['moving', 'new'],
     ]);
+    expect(snapshot.attachmentCandidateIds).toEqual([]);
+  });
+
+  it('exposes only potential new attachment targets while dragging', () => {
+    const spatialField = field([thought('moving', 100), thought('target', 250)]);
+
+    startDrag(spatialField, 'moving');
+    const moving = spatialField.dispatch({
+      type: 'pointer-move',
+      point: { x: 50, y: 0 },
+      zoom: 1,
+    });
+
+    expect(moving.attachmentCandidateIds).toEqual(['target']);
+    expect(moving.isDragging).toBe(true);
+    expect(moving.state.attachments).toEqual([]);
+
+    const released = spatialField.dispatch({ type: 'pointer-up' });
+    expect(released.attachmentCandidateIds).toEqual([]);
+    expect(released.isDragging).toBe(false);
+    expect(released.state.attachments).toEqual([['moving', 'target']]);
   });
 
   it('resizes an edited thought and recalculates its bonds', () => {
@@ -146,6 +168,8 @@ describe('spatial field transitions', () => {
         attachments: [['keep', 'other']],
       },
       selectedId: null,
+      attachmentCandidateIds: [],
+      isDragging: false,
     });
   });
 

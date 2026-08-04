@@ -2,6 +2,7 @@ import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
 import { createSpaceCamera } from '../spaceCamera';
+import { hintForSpace } from '../spaceHint';
 import type { SpatialFieldInput } from '../spatialField';
 import type { SpaceState, Thought } from '../types';
 
@@ -10,7 +11,9 @@ const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 type ThoughtSpaceProps = {
   state: SpaceState;
   selectedId: string | null;
-  showEmptyHint: boolean;
+  attachmentCandidateIds: string[];
+  isDragging: boolean;
+  showHint: boolean;
   onInput: (input: SpatialFieldInput) => void;
   onCreateRequest?: (
     screenPosition: { x: number; y: number },
@@ -24,7 +27,9 @@ type ThoughtSpaceProps = {
 export function ThoughtSpace({
   state,
   selectedId,
-  showEmptyHint,
+  attachmentCandidateIds,
+  isDragging,
+  showHint,
   onInput,
   onCreateRequest,
   onEditRequest,
@@ -34,12 +39,14 @@ export function ThoughtSpace({
   const hostRef = useRef<HTMLDivElement>(null);
   const camera = useRef(createSpaceCamera()).current;
   const stateRef = useRef(state);
+  const attachmentCandidateIdsRef = useRef(new Set(attachmentCandidateIds));
   const onInputRef = useRef(onInput);
   const onCreateRequestRef = useRef(onCreateRequest);
   const onEditRequestRef = useRef(onEditRequest);
   const onEmptyClickRef = useRef(onEmptyClick);
 
   stateRef.current = state;
+  attachmentCandidateIdsRef.current = new Set(attachmentCandidateIds);
   onInputRef.current = onInput;
   onCreateRequestRef.current = onCreateRequest;
   onEditRequestRef.current = onEditRequest;
@@ -105,6 +112,9 @@ export function ThoughtSpace({
 
           for (const thought of current.thoughts) {
             const position = positions.get(thought.id)!;
+            const isAttachmentCandidate = attachmentCandidateIdsRef.current.has(
+              thought.id,
+            );
             const bubble = new Container();
             bubble.x = position.x;
             bubble.y = position.y;
@@ -118,6 +128,12 @@ export function ThoughtSpace({
             const shadow = new Graphics()
               .circle(3, 7, thought.radius + 3)
               .fill({ color: 0x49504a, alpha: 0.07 });
+            const attachmentHalo = isAttachmentCandidate
+              ? new Graphics()
+                  .circle(0, 0, thought.radius + 7)
+                  .fill({ color: 0xf5fff9, alpha: 0.2 })
+                  .stroke({ color: 0x718c7d, alpha: 0.68, width: 4 })
+              : null;
             const body = new Graphics()
               .circle(0, 0, thought.radius)
               .fill({ color: palette[thought.tone % palette.length], alpha: 0.96 })
@@ -144,6 +160,7 @@ export function ThoughtSpace({
             });
             label.anchor.set(0.5);
             label.resolution = 2;
+            if (attachmentHalo) bubble.addChild(attachmentHalo);
             bubble.addChild(shadow, body, label);
 
             bubble.on('pointerdown', (event) => {
@@ -338,20 +355,36 @@ export function ThoughtSpace({
   useEffect(() => {
     const canvas = hostRef.current?.querySelector('canvas');
     if (canvas) window.dispatchEvent(new Event('resize'));
-  }, [state]);
+  }, [state, attachmentCandidateIds]);
 
   const selectedThought = state.thoughts.find((thought) => thought.id === selectedId);
+  const hint = showHint ? hintForSpace(state, isDragging) : null;
   const host = hostRef.current;
   const selectedPosition =
     selectedThought && host ? camera.worldToScreen(selectedThought) : null;
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
-      {state.thoughts.length === 0 && showEmptyHint && (
-        <p className="empty-space-hint">Double click or press Enter</p>
-      )}
+      {hint && <p className="empty-space-hint">{hint}</p>}
       {selectedThought && selectedPosition && (
         <>
+          <button
+            title="Edit thought"
+            className="bubble-edit"
+            style={{
+              left:
+                selectedPosition.x - selectedThought.radius * camera.read().zoom * 0.69,
+              top:
+                selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.69,
+            }}
+            onClick={() => {
+              onInputRef.current({ type: 'clear-selection' });
+              onEditRequestRef.current?.(selectedThought, selectedPosition);
+            }}
+            aria-label={`Edit thought: ${selectedThought.text}`}
+          >
+            <span aria-hidden="true">✎</span>
+          </button>
           <button
             title="Delete thought"
             className="bubble-delete"

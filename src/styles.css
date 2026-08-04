@@ -81,6 +81,7 @@ textarea:focus-visible {
   transform: translate(-50%, -50%);
 }
 
+.bubble-edit,
 .bubble-delete,
 .bubble-grab {
   position: absolute;
@@ -99,6 +100,7 @@ textarea:focus-visible {
   backdrop-filter: blur(10px);
 }
 
+.bubble-edit,
 .bubble-delete {
   padding-bottom: 2px;
   font-size: 18px;
@@ -106,10 +108,16 @@ textarea:focus-visible {
   cursor: pointer;
 }
 
+.bubble-edit {
+  padding: 0 1px 1px 0;
+  font-size: 16px;
+}
+
 .bubble-grab {
   cursor: grab;
 }
 
+.bubble-edit:hover,
 .bubble-delete:hover,
 .bubble-grab:hover {
   background: #fff;

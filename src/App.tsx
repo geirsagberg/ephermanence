@@ -70,7 +70,9 @@ export function App() {
         <ThoughtSpace
           state={state}
           selectedId={fieldSnapshot.selectedId}
-          showEmptyHint={draftPosition === null}
+          attachmentCandidateIds={fieldSnapshot.attachmentCandidateIds}
+          isDragging={fieldSnapshot.isDragging}
+          showHint={draftPosition === null}
           onInput={sendToField}
           onCreateRequest={(screenPosition, worldPosition) => {
             setDraftPosition(screenPosition);
