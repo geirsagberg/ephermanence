@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 
-import { QuickCapture } from './components/QuickCapture';
 import {
   SpatialThoughtComposer,
   type DraftPosition,
@@ -8,7 +7,6 @@ import {
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { initialSpace } from './initialSpace';
 import { createSpatialField, type SpatialFieldInput } from './spatialField';
-const defaultQuickCapturePosition = { x: 280, y: 150 };
 
 function Wordmark() {
   return (
@@ -22,7 +20,6 @@ function Wordmark() {
 export function App() {
   const [field] = useState(() => createSpatialField(initialSpace));
   const [fieldSnapshot, setFieldSnapshot] = useState(field.read);
-  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
   const [draftWorldPosition, setDraftWorldPosition] = useState<DraftPosition | null>(
     null,
@@ -35,36 +32,16 @@ export function App() {
     [field],
   );
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
-      if (
-        event.key !== 'Enter' ||
-        event.repeat ||
-        (target instanceof HTMLElement &&
-          target.matches('input, textarea, select, button, [contenteditable="true"]'))
-      ) {
-        return;
-      }
-      event.preventDefault();
-      setQuickCaptureOpen(true);
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  const createThought = (text: string, position?: DraftPosition) => {
+  const createThought = (text: string, position: DraftPosition) => {
     sendToField({
       type: 'create-thought',
       id: `thought-${Date.now()}`,
       text,
-      position: position ?? defaultQuickCapturePosition,
+      position,
     });
     setDraftPosition(null);
     setDraftWorldPosition(null);
     setEditingId(null);
-    setQuickCaptureOpen(false);
   };
 
   return (
@@ -72,9 +49,6 @@ export function App() {
       <main className="app-shell">
         <header className="app-header">
           <Wordmark />
-          <button className="quiet-button" onClick={() => setQuickCaptureOpen(true)}>
-            + Quick capture
-          </button>
         </header>
         <ThoughtSpace
           state={state}
@@ -101,7 +75,7 @@ export function App() {
           <span className="guidance-dot" />
           <span>Shift-drag to detach</span>
           <span className="guidance-dot" />
-          <span>Enter to quick capture</span>
+          <span>Enter to add at pointer</span>
         </div>
       </main>
       {draftPosition && (
@@ -131,11 +105,6 @@ export function App() {
           }}
         />
       )}
-      <QuickCapture
-        open={quickCaptureOpen}
-        onClose={() => setQuickCaptureOpen(false)}
-        onCapture={createThought}
-      />
     </>
   );
 }

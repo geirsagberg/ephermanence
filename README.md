@@ -13,8 +13,9 @@ together.
   recalculate its connections.
 - Bring thoughts into contact and release to connect them.
 - Drag empty space to pan. Scroll, `+`, or `-` to zoom; `0` resets zoom.
-- Press Enter to open Quick Capture. Enter saves; Shift+Enter adds a line break; Escape
-  cancels.
+- Press Enter to create a thought at the pointer, or at the viewport center when the
+  pointer is outside the spatial field. Enter saves; Shift+Enter adds a line break;
+  Escape cancels.
 
 ## Development
 

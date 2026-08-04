@@ -169,21 +169,6 @@ textarea:focus-visible {
   pointer-events: auto;
 }
 
-.quiet-button {
-  padding: 9px 14px;
-  border: 1px solid rgb(39 48 44 / 16%);
-  border-radius: 999px;
-  background: rgb(250 249 245 / 56%);
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 160ms ease;
-  backdrop-filter: blur(10px);
-}
-
-.quiet-button:hover {
-  background: rgb(255 255 255 / 82%);
-}
-
 .app-guidance {
   position: absolute;
   z-index: 3;
@@ -242,83 +227,6 @@ textarea:focus-visible {
   color: rgb(38 49 45 / 46%);
   font-size: 9px;
   letter-spacing: 0.04em;
-}
-
-/* Capture intentionally replaces the space instead of becoming another panel. */
-.capture {
-  position: fixed;
-  z-index: 20;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 28px;
-  background: #f4f1e9;
-  animation: capture-in 220ms ease-out;
-}
-
-.capture__close {
-  position: absolute;
-  top: 24px;
-  right: 28px;
-  border: 0;
-  background: transparent;
-  color: #69716d;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.capture__form {
-  width: min(720px, 100%);
-}
-
-.capture textarea {
-  width: 100%;
-  margin-top: 20px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #26302b;
-  font-family: "Newsreader", serif;
-  font-size: clamp(34px, 5vw, 64px);
-  line-height: 1.08;
-  letter-spacing: -0.03em;
-  outline: none;
-  resize: none;
-}
-
-.capture textarea::placeholder {
-  color: #c1c0b9;
-}
-
-.capture__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: 18px;
-  border-top: 1px solid rgb(39 48 44 / 12%);
-  color: #858a85;
-  font-size: 11px;
-}
-
-.capture__footer button {
-  padding: 11px 18px;
-  border: 0;
-  border-radius: 999px;
-  background: #303a35;
-  color: white;
-  cursor: pointer;
-}
-
-.capture__footer button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-@keyframes capture-in {
-  from {
-    opacity: 0;
-    transform: scale(1.015);
-  }
 }
 
 @media (max-width: 720px) {

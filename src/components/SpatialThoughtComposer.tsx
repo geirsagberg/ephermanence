@@ -53,7 +53,6 @@ export function SpatialThoughtComposer({
         rows={4}
         aria-label={label}
       />
-      <span>enter keep · esc cancel</span>
     </form>
   );
 }

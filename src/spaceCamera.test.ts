@@ -78,7 +78,7 @@ describe('space camera navigation', () => {
     expect(camera.read().zoom).toBe(3);
   });
 
-  it('doubles zoom sensitivity for synthesized pinch input', () => {
+  it('uses stronger zoom sensitivity for synthesized pinch input', () => {
     const wheelCamera = createSpaceCamera();
     const pinchCamera = createSpaceCamera();
     const point = { x: 0, y: 0 };
@@ -86,8 +86,8 @@ describe('space camera navigation', () => {
     wheelCamera.dispatch({ type: 'wheel', point, deltaY: -100, pinching: false });
     pinchCamera.dispatch({ type: 'wheel', point, deltaY: -100, pinching: true });
 
-    expect(wheelCamera.read().zoom).toBeCloseTo(Math.exp(0.15));
-    expect(pinchCamera.read().zoom).toBeCloseTo(Math.exp(0.3));
+    expect(wheelCamera.read().zoom).toBeCloseTo(Math.exp(0.2));
+    expect(pinchCamera.read().zoom).toBeCloseTo(Math.exp(0.6));
   });
 
   it('owns keyboard zoom and reset around the viewport center', () => {

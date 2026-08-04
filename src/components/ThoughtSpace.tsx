@@ -51,6 +51,7 @@ export function ThoughtSpace({
     let cancelled = false;
     let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
     let destroyed = false;
+    let pointerPosition: { x: number; y: number } | null = null;
     let renderSpace = () => {};
     const destroyApp = () => {
       if (destroyed) return;
@@ -161,6 +162,8 @@ export function ThoughtSpace({
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
+          pointerPosition =
+            x >= 0 && y >= 0 && x <= rect.width && y <= rect.height ? { x, y } : null;
 
           const cameraMove = camera.dispatch({ type: 'pointer-move', point: { x, y } });
           if (cameraMove.handled) {
@@ -181,7 +184,7 @@ export function ThoughtSpace({
         const onUp = () => {
           const cameraUp = camera.dispatch({ type: 'pointer-up' });
           if (cameraUp.handled) {
-            if (canvas) canvas.style.cursor = '';
+            if (canvas) canvas.style.cursor = 'pointer';
             return;
           }
           onInputRef.current({ type: 'pointer-up' });
@@ -262,6 +265,21 @@ export function ThoughtSpace({
             target instanceof HTMLElement &&
             target.matches('input, textarea, select, button, [contenteditable="true"]')
           ) {
+            return;
+          }
+
+          if (event.key === 'Enter') {
+            if (event.repeat) return;
+            event.preventDefault();
+            const screenPosition = pointerPosition ?? {
+              x: app.screen.width / 2,
+              y: app.screen.height / 2,
+            };
+            onInputRef.current({ type: 'clear-selection' });
+            onCreateRequestRef.current?.(
+              screenPosition,
+              camera.screenToWorld(screenPosition),
+            );
             return;
           }
 
