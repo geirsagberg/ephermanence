@@ -10,6 +10,8 @@ import { initialSpace } from './initialSpace';
 import { editThought, thoughtRadius } from './spaceInteractions';
 import type { SpaceState } from './types';
 
+const defaultQuickCapturePosition = { x: 973, y: 518 };
+
 function Wordmark() {
   return (
     <div className="wordmark" aria-label="Ephermanence">
@@ -61,8 +63,8 @@ export function App() {
     const nextThought = {
       id: `thought-${Date.now()}`,
       text,
-      x: position?.x ?? 0.76,
-      y: position?.y ?? 0.72,
+      x: position?.x ?? defaultQuickCapturePosition.x,
+      y: position?.y ?? defaultQuickCapturePosition.y,
       radius: thoughtRadius(text),
       tone: state.thoughts.length % 5,
     };
@@ -136,15 +138,7 @@ export function App() {
               createThought(text, draftWorldPosition ?? draftPosition);
               return;
             }
-            setState((current) =>
-              editThought(
-                current,
-                editingId,
-                text,
-                window.innerWidth,
-                window.innerHeight,
-              ),
-            );
+            setState((current) => editThought(current, editingId, text));
             setDraftPosition(null);
             setDraftWorldPosition(null);
             setEditingId(null);

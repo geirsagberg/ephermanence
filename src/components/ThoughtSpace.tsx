@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   bringThoughtToFront,
+  bringThoughtToFrontWhenAlone,
   deleteThought,
   getMovingThoughtIds,
+  moveThoughtsForPointerDelta,
   recalculateAttachments,
-  translateThoughts,
 } from '../spaceInteractions';
 import {
   screenToWorld,
@@ -34,6 +35,7 @@ type ThoughtSpaceProps = {
 type DragState = {
   activeId: string;
   distance: number;
+  started: boolean;
   lastX: number;
   lastY: number;
   movingIds: Set<string>;
@@ -45,13 +47,6 @@ type PanState = {
   lastX: number;
   lastY: number;
 };
-
-function bubblePosition(thought: Thought, width: number, height: number) {
-  return {
-    x: thought.x <= 1 ? thought.x * width : thought.x,
-    y: thought.y <= 1 ? thought.y * height : thought.y,
-  };
-}
 
 export function ThoughtSpace({
   state,
@@ -115,18 +110,13 @@ export function ThoughtSpace({
 
         renderSpace = () => {
           const current = stateRef.current;
-          const width = app.screen.width;
-          const height = app.screen.height;
           const camera = cameraRef.current;
           layer.position.set(camera.x, camera.y);
           layer.scale.set(camera.zoom);
           layer.removeChildren().forEach((child) => child.destroy({ children: true }));
 
           const positions = new Map(
-            current.thoughts.map((thought) => [
-              thought.id,
-              bubblePosition(thought, width, height),
-            ]),
+            current.thoughts.map((thought) => [thought.id, thought]),
           );
 
           for (const [a, b] of current.attachments) {
@@ -189,6 +179,7 @@ export function ThoughtSpace({
               drag = {
                 activeId: thought.id,
                 distance: 0,
+                started: false,
                 lastX: point.x,
                 lastY: point.y,
                 movingIds: getMovingThoughtIds(thought.id, current.attachments, singular),
@@ -225,22 +216,28 @@ export function ThoughtSpace({
           const dx = x - drag.lastX;
           const dy = y - drag.lastY;
           drag.distance += Math.hypot(dx, dy);
-          if (drag.distance >= 4) setSelectedId(null);
+          const dragBegan = !drag.started && drag.distance >= 4;
+          if (dragBegan) {
+            drag.started = true;
+            setSelectedId(null);
+          }
           drag.lastX = x;
           drag.lastY = y;
 
           const current = stateRef.current;
-          const width = app.screen.width;
-          const height = app.screen.height;
-          const positionedThoughts = current.thoughts.map((thought) => {
-            const position = bubblePosition(thought, width, height);
-            return { ...thought, ...position };
-          });
-          const thoughts = translateThoughts(
-            positionedThoughts,
+          const orderedThoughts = dragBegan
+            ? bringThoughtToFrontWhenAlone(
+                current.thoughts,
+                current.attachments,
+                drag.activeId,
+              )
+            : current.thoughts;
+          const thoughts = moveThoughtsForPointerDelta(
+            orderedThoughts,
             drag.movingIds,
-            dx / cameraRef.current.zoom,
-            dy / cameraRef.current.zoom,
+            dx,
+            dy,
+            cameraRef.current.zoom,
           );
           const next = { thoughts, attachments: current.attachments };
           stateRef.current = next;
@@ -289,13 +286,8 @@ export function ThoughtSpace({
           const y = event.clientY - rect.top;
           const worldPoint = screenToWorld(cameraRef.current, { x, y });
           const thought = [...stateRef.current.thoughts].reverse().find((candidate) => {
-            const position = bubblePosition(
-              candidate,
-              app.screen.width,
-              app.screen.height,
-            );
             return (
-              Math.hypot(position.x - worldPoint.x, position.y - worldPoint.y) <=
+              Math.hypot(candidate.x - worldPoint.x, candidate.y - worldPoint.y) <=
               candidate.radius
             );
           });
@@ -304,10 +296,7 @@ export function ThoughtSpace({
             setSelectedId(null);
             onEditRequestRef.current?.(
               thought,
-              worldToScreen(
-                cameraRef.current,
-                bubblePosition(thought, app.screen.width, app.screen.height),
-              ),
+              worldToScreen(cameraRef.current, thought),
             );
             return;
           }
@@ -320,9 +309,8 @@ export function ThoughtSpace({
           const y = event.clientY - rect.top;
           const worldPoint = screenToWorld(cameraRef.current, { x, y });
           const overThought = stateRef.current.thoughts.some((thought) => {
-            const position = bubblePosition(thought, app.screen.width, app.screen.height);
             return (
-              Math.hypot(position.x - worldPoint.x, position.y - worldPoint.y) <=
+              Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
               thought.radius
             );
           });
@@ -340,9 +328,8 @@ export function ThoughtSpace({
           };
           const worldPoint = screenToWorld(cameraRef.current, point);
           const overThought = stateRef.current.thoughts.some((thought) => {
-            const position = bubblePosition(thought, app.screen.width, app.screen.height);
             return (
-              Math.hypot(position.x - worldPoint.x, position.y - worldPoint.y) <=
+              Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
               thought.radius
             );
           });
@@ -427,12 +414,7 @@ export function ThoughtSpace({
   const selectedThought = state.thoughts.find((thought) => thought.id === selectedId);
   const host = hostRef.current;
   const selectedPosition =
-    selectedThought && host
-      ? worldToScreen(
-          cameraRef.current,
-          bubblePosition(selectedThought, host.clientWidth, host.clientHeight),
-        )
-      : null;
+    selectedThought && host ? worldToScreen(cameraRef.current, selectedThought) : null;
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>

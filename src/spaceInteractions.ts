@@ -6,6 +6,15 @@ export function bringThoughtToFront(thoughts: Thought[], id: string) {
   return [...thoughts.filter((thought) => thought.id !== id), selected];
 }
 
+export function bringThoughtToFrontWhenAlone(
+  thoughts: Thought[],
+  attachments: Attachment[],
+  id: string,
+) {
+  const attached = attachments.some(([a, b]) => a === id || b === id);
+  return attached ? thoughts : bringThoughtToFront(thoughts, id);
+}
+
 export function deleteThought(state: SpaceState, id: string): SpaceState {
   return {
     thoughts: state.thoughts.filter((thought) => thought.id !== id),
@@ -17,17 +26,9 @@ export function thoughtRadius(text: string) {
   return Math.max(74, Math.min(96, 70 + text.length * 0.35));
 }
 
-export function editThought(
-  state: SpaceState,
-  id: string,
-  text: string,
-  width: number,
-  height: number,
-): SpaceState {
+export function editThought(state: SpaceState, id: string, text: string): SpaceState {
   const thoughts = state.thoughts.map((thought) => ({
     ...thought,
-    x: thought.x <= 1 ? thought.x * width : thought.x,
-    y: thought.y <= 1 ? thought.y * height : thought.y,
     ...(thought.id === id ? { text, radius: thoughtRadius(text) } : {}),
   }));
 
@@ -78,6 +79,16 @@ export function translateThoughts(
       y: thought.y + dy,
     };
   });
+}
+
+export function moveThoughtsForPointerDelta(
+  thoughts: Thought[],
+  movingIds: Set<string>,
+  dx: number,
+  dy: number,
+  zoom: number,
+) {
+  return translateThoughts(thoughts, movingIds, dx / zoom, dy / zoom);
 }
 
 function attachmentKey([a, b]: Attachment) {

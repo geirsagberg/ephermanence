@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   bringThoughtToFront,
+  bringThoughtToFrontWhenAlone,
   deleteThought,
   editThought,
   getMovingThoughtIds,
+  moveThoughtsForPointerDelta,
   recalculateAttachments,
   translateThoughts,
 } from './spaceInteractions';
@@ -27,6 +29,23 @@ describe('space interactions', () => {
       thought('back', 300),
       thought('middle', 200),
     ]);
+  });
+
+  it('brings an unattached thought to the front when its drag begins', () => {
+    const thoughts = [thought('moving', 100), thought('front', 200)];
+
+    expect(bringThoughtToFrontWhenAlone(thoughts, [], 'moving')).toEqual([
+      thought('front', 200),
+      thought('moving', 100),
+    ]);
+  });
+
+  it('does not reorder an attached thought when dragged singularly', () => {
+    const thoughts = [thought('moving', 100), thought('front', 200)];
+
+    expect(bringThoughtToFrontWhenAlone(thoughts, [['moving', 'front']], 'moving')).toBe(
+      thoughts,
+    );
   });
 
   it('deletes a thought and all of its attachments', () => {
@@ -53,7 +72,7 @@ describe('space interactions', () => {
       attachments: [['editing', 'nearby']] satisfies Attachment[],
     };
 
-    expect(editThought(state, 'editing', 'Short', 1_000, 800)).toEqual({
+    expect(editThought(state, 'editing', 'Short')).toEqual({
       thoughts: [
         { ...thought('editing', 100, 74), text: 'Short' },
         thought('nearby', 270, 80),
@@ -68,6 +87,14 @@ describe('space interactions', () => {
     const moved = translateThoughts(thoughts, new Set(['moving']), 40, 0);
 
     expect(moved).toEqual([thought('moving', 140), thought('target', 250)]);
+  });
+
+  it('does not rewrite unmoved world coordinates during a drag', () => {
+    const thoughts = [thought('moving', 346), thought('fixed', 858)];
+
+    const moved = moveThoughtsForPointerDelta(thoughts, new Set(['moving']), 20, 0, 2);
+
+    expect(moved).toEqual([thought('moving', 356), thought('fixed', 858)]);
   });
 
   it('moves an attached cluster together during a normal drag', () => {
