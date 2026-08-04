@@ -65,7 +65,7 @@ describe('space interactions', () => {
   it('moves a dragged bubble by the pointer delta without automatic movement', () => {
     const thoughts = [thought('moving', 100), thought('target', 250)];
 
-    const moved = translateThoughts(thoughts, new Set(['moving']), 40, 0, 1_000, 800);
+    const moved = translateThoughts(thoughts, new Set(['moving']), 40, 0);
 
     expect(moved).toEqual([thought('moving', 140), thought('target', 250)]);
   });

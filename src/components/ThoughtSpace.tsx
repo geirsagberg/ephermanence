@@ -8,6 +8,12 @@ import {
   recalculateAttachments,
   translateThoughts,
 } from '../spaceInteractions';
+import {
+  screenToWorld,
+  worldToScreen,
+  zoomCameraAt,
+  type SpaceCamera,
+} from '../spaceCamera';
 import type { SpaceState, Thought } from '../types';
 
 const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
@@ -15,7 +21,10 @@ const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 type ThoughtSpaceProps = {
   state: SpaceState;
   onChange: (state: SpaceState) => void;
-  onCreateRequest?: (position: { x: number; y: number }) => void;
+  onCreateRequest?: (
+    screenPosition: { x: number; y: number },
+    worldPosition: { x: number; y: number },
+  ) => void;
   onEditRequest?: (thought: Thought, position: { x: number; y: number }) => void;
   onEmptyClick?: () => void;
   className?: string;
@@ -28,6 +37,12 @@ type DragState = {
   lastY: number;
   movingIds: Set<string>;
   singular: boolean;
+};
+
+type PanState = {
+  distance: number;
+  lastX: number;
+  lastY: number;
 };
 
 function bubblePosition(thought: Thought, width: number, height: number) {
@@ -47,6 +62,7 @@ export function ThoughtSpace({
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const cameraRef = useRef<SpaceCamera>({ x: 0, y: 0, zoom: 1 });
   const stateRef = useRef(state);
   const onChangeRef = useRef(onChange);
   const onCreateRequestRef = useRef(onCreateRequest);
@@ -68,6 +84,7 @@ export function ThoughtSpace({
     let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
     let destroyed = false;
     let drag: DragState | null = null;
+    let pan: PanState | null = null;
     let renderSpace = () => {};
     const destroyApp = () => {
       if (destroyed) return;
@@ -99,6 +116,9 @@ export function ThoughtSpace({
           const current = stateRef.current;
           const width = app.screen.width;
           const height = app.screen.height;
+          const camera = cameraRef.current;
+          layer.position.set(camera.x, camera.y);
+          layer.scale.set(camera.zoom);
           layer.removeChildren().forEach((child) => child.destroy({ children: true }));
 
           const positions = new Map(
@@ -180,10 +200,27 @@ export function ThoughtSpace({
         };
 
         const onMove = (event: PointerEvent) => {
-          if (!drag) return;
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
+
+          if (pan) {
+            const dx = x - pan.lastX;
+            const dy = y - pan.lastY;
+            pan.distance += Math.hypot(dx, dy);
+            pan.lastX = x;
+            pan.lastY = y;
+            cameraRef.current = {
+              ...cameraRef.current,
+              x: cameraRef.current.x + dx,
+              y: cameraRef.current.y + dy,
+            };
+            if (pan.distance >= 4) setSelectedId(null);
+            renderSpace();
+            return;
+          }
+
+          if (!drag) return;
           const dx = x - drag.lastX;
           const dy = y - drag.lastY;
           drag.distance += Math.hypot(dx, dy);
@@ -201,10 +238,8 @@ export function ThoughtSpace({
           const thoughts = translateThoughts(
             positionedThoughts,
             drag.movingIds,
-            dx,
-            dy,
-            width,
-            height,
+            dx / cameraRef.current.zoom,
+            dy / cameraRef.current.zoom,
           );
           const next = { thoughts, attachments: current.attachments };
           stateRef.current = next;
@@ -213,6 +248,11 @@ export function ThoughtSpace({
         };
 
         const onUp = () => {
+          if (pan) {
+            pan = null;
+            if (canvas) canvas.style.cursor = '';
+            return;
+          }
           if (!drag) return;
           const current = stateRef.current;
           if (drag.distance < 4) {
@@ -246,43 +286,89 @@ export function ThoughtSpace({
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
+          const worldPoint = screenToWorld(cameraRef.current, { x, y });
           const thought = [...stateRef.current.thoughts].reverse().find((candidate) => {
             const position = bubblePosition(
               candidate,
               app.screen.width,
               app.screen.height,
             );
-            return Math.hypot(position.x - x, position.y - y) <= candidate.radius;
+            return (
+              Math.hypot(position.x - worldPoint.x, position.y - worldPoint.y) <=
+              candidate.radius
+            );
           });
           event.preventDefault();
           if (thought) {
             setSelectedId(null);
             onEditRequestRef.current?.(
               thought,
-              bubblePosition(thought, app.screen.width, app.screen.height),
+              worldToScreen(
+                cameraRef.current,
+                bubblePosition(thought, app.screen.width, app.screen.height),
+              ),
             );
             return;
           }
-          onCreateRequestRef.current?.({ x, y });
+          onCreateRequestRef.current?.({ x, y }, worldPoint);
         };
 
         const onCanvasClick = (event: MouseEvent) => {
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
+          const worldPoint = screenToWorld(cameraRef.current, { x, y });
           const overThought = stateRef.current.thoughts.some((thought) => {
             const position = bubblePosition(thought, app.screen.width, app.screen.height);
-            return Math.hypot(position.x - x, position.y - y) <= thought.radius;
+            return (
+              Math.hypot(position.x - worldPoint.x, position.y - worldPoint.y) <=
+              thought.radius
+            );
           });
           if (overThought) return;
           setSelectedId(null);
           onEmptyClickRef.current?.();
         };
 
+        const onPointerDown = (event: PointerEvent) => {
+          if (event.button !== 0) return;
+          const rect = app.canvas.getBoundingClientRect();
+          const point = {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+          };
+          const worldPoint = screenToWorld(cameraRef.current, point);
+          const overThought = stateRef.current.thoughts.some((thought) => {
+            const position = bubblePosition(thought, app.screen.width, app.screen.height);
+            return (
+              Math.hypot(position.x - worldPoint.x, position.y - worldPoint.y) <=
+              thought.radius
+            );
+          });
+          if (overThought) return;
+          pan = { distance: 0, lastX: point.x, lastY: point.y };
+          canvas!.style.cursor = 'grabbing';
+        };
+
+        const onWheel = (event: WheelEvent) => {
+          event.preventDefault();
+          const rect = app.canvas.getBoundingClientRect();
+          cameraRef.current = zoomCameraAt(
+            cameraRef.current,
+            { x: event.clientX - rect.left, y: event.clientY - rect.top },
+            event.deltaY,
+          );
+          setSelectedId(null);
+          onEmptyClickRef.current?.();
+          renderSpace();
+        };
+
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
         canvas.addEventListener('click', onCanvasClick);
         canvas.addEventListener('dblclick', onDoubleClick);
+        canvas.addEventListener('pointerdown', onPointerDown);
+        canvas.addEventListener('wheel', onWheel, { passive: false });
         app.renderer.on('resize', renderSpace);
         renderSpace();
 
@@ -293,6 +379,8 @@ export function ThoughtSpace({
             window.removeEventListener('pointerup', onUp);
             canvas?.removeEventListener('click', onCanvasClick);
             canvas?.removeEventListener('dblclick', onDoubleClick);
+            canvas?.removeEventListener('pointerdown', onPointerDown);
+            canvas?.removeEventListener('wheel', onWheel);
           },
         });
       });
@@ -313,7 +401,10 @@ export function ThoughtSpace({
   const host = hostRef.current;
   const selectedPosition =
     selectedThought && host
-      ? bubblePosition(selectedThought, host.clientWidth, host.clientHeight)
+      ? worldToScreen(
+          cameraRef.current,
+          bubblePosition(selectedThought, host.clientWidth, host.clientHeight),
+        )
       : null;
 
   return (
@@ -322,8 +413,10 @@ export function ThoughtSpace({
         <button
           className="bubble-delete"
           style={{
-            left: selectedPosition.x + selectedThought.radius * 0.68,
-            top: selectedPosition.y - selectedThought.radius * 0.68,
+            left:
+              selectedPosition.x + selectedThought.radius * cameraRef.current.zoom * 0.68,
+            top:
+              selectedPosition.y - selectedThought.radius * cameraRef.current.zoom * 0.68,
           }}
           onClick={() => {
             const next = deleteThought(stateRef.current, selectedThought.id);

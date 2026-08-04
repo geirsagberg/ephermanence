@@ -32,6 +32,9 @@ function StateReadout({ state }: { state: SpaceState }) {
 export function App() {
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
+  const [draftWorldPosition, setDraftWorldPosition] = useState<DraftPosition | null>(
+    null,
+  );
   const [editingId, setEditingId] = useState<string | null>(null);
   const [state, setState] = useState<SpaceState>(initialSpace);
 
@@ -46,6 +49,7 @@ export function App() {
     };
     setState((current) => ({ ...current, thoughts: [...current.thoughts, nextThought] }));
     setDraftPosition(null);
+    setDraftWorldPosition(null);
     setEditingId(null);
     setQuickCaptureOpen(false);
   };
@@ -62,18 +66,28 @@ export function App() {
         <ThoughtSpace
           state={state}
           onChange={setState}
-          onCreateRequest={setDraftPosition}
+          onCreateRequest={(screenPosition, worldPosition) => {
+            setDraftPosition(screenPosition);
+            setDraftWorldPosition(worldPosition);
+            setEditingId(null);
+          }}
           onEditRequest={(thought, position) => {
             setDraftPosition(position);
+            setDraftWorldPosition(null);
             setEditingId(thought.id);
           }}
           onEmptyClick={() => {
             setDraftPosition(null);
+            setDraftWorldPosition(null);
             setEditingId(null);
           }}
         />
         <div className="app-guidance">
           <span>Double-click empty space to add</span>
+          <span className="guidance-dot" />
+          <span>Drag empty space to pan</span>
+          <span className="guidance-dot" />
+          <span>Scroll to zoom</span>
           <span className="guidance-dot" />
           <span>Shift-drag to move one</span>
         </div>
@@ -91,11 +105,12 @@ export function App() {
           label={editingId ? 'Edit thought' : undefined}
           onCancel={() => {
             setDraftPosition(null);
+            setDraftWorldPosition(null);
             setEditingId(null);
           }}
           onCreate={(text) => {
             if (!editingId) {
-              createThought(text, draftPosition);
+              createThought(text, draftWorldPosition ?? draftPosition);
               return;
             }
             setState((current) =>
@@ -108,6 +123,7 @@ export function App() {
               ),
             );
             setDraftPosition(null);
+            setDraftWorldPosition(null);
             setEditingId(null);
           }}
         />

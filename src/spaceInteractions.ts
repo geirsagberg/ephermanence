@@ -69,15 +69,13 @@ export function translateThoughts(
   movingIds: Set<string>,
   dx: number,
   dy: number,
-  width: number,
-  height: number,
 ) {
   return thoughts.map((thought) => {
     if (!movingIds.has(thought.id)) return thought;
     return {
       ...thought,
-      x: Math.max(thought.radius, Math.min(width - thought.radius, thought.x + dx)),
-      y: Math.max(thought.radius, Math.min(height - thought.radius, thought.y + dy)),
+      x: thought.x + dx,
+      y: thought.y + dy,
     };
   });
 }
