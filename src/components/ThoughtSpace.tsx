@@ -13,6 +13,7 @@ const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 type ThoughtSpaceProps = {
   state: SpaceState;
   onChange: (state: SpaceState) => void;
+  onCreateRequest?: (position: { x: number; y: number }) => void;
   className?: string;
 };
 
@@ -30,13 +31,20 @@ function bubblePosition(thought: Thought, width: number, height: number) {
   };
 }
 
-export function ThoughtSpace({ state, onChange, className = '' }: ThoughtSpaceProps) {
+export function ThoughtSpace({
+  state,
+  onChange,
+  onCreateRequest,
+  className = '',
+}: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   const onChangeRef = useRef(onChange);
+  const onCreateRequestRef = useRef(onCreateRequest);
 
   stateRef.current = state;
   onChangeRef.current = onChange;
+  onCreateRequestRef.current = onCreateRequest;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -205,8 +213,22 @@ export function ThoughtSpace({ state, onChange, className = '' }: ThoughtSpacePr
           drag = null;
         };
 
+        const onDoubleClick = (event: MouseEvent) => {
+          const rect = app.canvas.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
+          const overThought = stateRef.current.thoughts.some((thought) => {
+            const position = bubblePosition(thought, app.screen.width, app.screen.height);
+            return Math.hypot(position.x - x, position.y - y) <= thought.radius;
+          });
+          if (overThought) return;
+          event.preventDefault();
+          onCreateRequestRef.current?.({ x, y });
+        };
+
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
+        canvas.addEventListener('dblclick', onDoubleClick);
         app.renderer.on('resize', renderSpace);
         renderSpace();
 
@@ -215,6 +237,7 @@ export function ThoughtSpace({ state, onChange, className = '' }: ThoughtSpacePr
           cleanupSpace: () => {
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
+            canvas?.removeEventListener('dblclick', onDoubleClick);
           },
         });
       });

@@ -16,5 +16,8 @@ Shift-drag a connected thought to move it independently, then its attachments ar
 recalculated when released. Use **Quick capture** to add a thought without placing or
 organizing it.
 
+Double-click empty space to create a thought there. Type inside the new bubble and
+press Enter to keep it, Shift+Enter for a line break, or Escape to cancel.
+
 The reflection interface follows the selected Drift direction: the spatial field is
 the interface, with quick capture available without requiring organization.
