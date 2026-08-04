@@ -10,7 +10,7 @@ import { initialSpace } from './initialSpace';
 import { createSpatialField, type SpatialFieldInput } from './spatialField';
 import type { SpaceState } from './types';
 
-const defaultQuickCapturePosition = { x: 973, y: 518 };
+const defaultQuickCapturePosition = { x: 280, y: 150 };
 
 function Wordmark() {
   return (

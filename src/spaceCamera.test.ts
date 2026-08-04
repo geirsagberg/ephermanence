@@ -3,6 +3,36 @@ import { describe, expect, it } from 'vitest';
 import { createSpaceCamera } from './spaceCamera';
 
 describe('space camera navigation', () => {
+  it('centers world origin in the initial viewport', () => {
+    const camera = createSpaceCamera();
+
+    camera.dispatch({
+      type: 'viewport-resize',
+      size: { width: 1280, height: 720 },
+    });
+
+    expect(camera.worldToScreen({ x: 0, y: 0 })).toEqual({ x: 640, y: 360 });
+    expect(camera.screenToWorld({ x: 640, y: 360 })).toEqual({ x: 0, y: 0 });
+  });
+
+  it('preserves the pan offset when the viewport is resized', () => {
+    const camera = createSpaceCamera();
+    camera.dispatch({
+      type: 'viewport-resize',
+      size: { width: 1000, height: 800 },
+    });
+    camera.dispatch({ type: 'pan-start', point: { x: 0, y: 0 } });
+    camera.dispatch({ type: 'pointer-move', point: { x: 20, y: -10 } });
+    camera.dispatch({ type: 'pointer-up' });
+
+    camera.dispatch({
+      type: 'viewport-resize',
+      size: { width: 1200, height: 900 },
+    });
+
+    expect(camera.worldToScreen({ x: 0, y: 0 })).toEqual({ x: 620, y: 440 });
+  });
+
   it('owns a complete pan session and reports when navigation begins', () => {
     const camera = createSpaceCamera();
 

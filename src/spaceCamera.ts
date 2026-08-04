@@ -1,4 +1,5 @@
 export type Point = { x: number; y: number };
+export type Size = { width: number; height: number };
 
 export type CameraState = {
   x: number;
@@ -11,7 +12,8 @@ export type CameraInput =
   | { type: 'pointer-move'; point: Point }
   | { type: 'pointer-up' }
   | { type: 'wheel'; point: Point; deltaY: number }
-  | { type: 'zoom-key'; key: '+' | '-' | '0'; center: Point };
+  | { type: 'zoom-key'; key: '+' | '-' | '0'; center: Point }
+  | { type: 'viewport-resize'; size: Size };
 
 export type CameraTransition = {
   state: CameraState;
@@ -36,6 +38,7 @@ export function createSpaceCamera(
 ): SpaceCamera {
   let state = initialState;
   let pan: Pan | null = null;
+  let viewport: Size | null = null;
 
   const screenToWorld = (point: Point) => ({
     x: (point.x - state.x) / state.zoom,
@@ -89,6 +92,22 @@ export function createSpaceCamera(
           const factor = input.key === '+' ? 1.2 : input.key === '-' ? 1 / 1.2 : 1;
           zoomAt(input.center, input.key === '0' ? 1 : state.zoom * factor);
           return { state, handled: true, navigated: true };
+        }
+        case 'viewport-resize': {
+          const previousCenter = viewport
+            ? { x: viewport.width / 2, y: viewport.height / 2 }
+            : { x: 0, y: 0 };
+          const nextCenter = {
+            x: input.size.width / 2,
+            y: input.size.height / 2,
+          };
+          state = {
+            ...state,
+            x: state.x + nextCenter.x - previousCenter.x,
+            y: state.y + nextCenter.y - previousCenter.y,
+          };
+          viewport = input.size;
+          return { state, handled: true, navigated: false };
         }
       }
     },

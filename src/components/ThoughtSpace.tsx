@@ -274,6 +274,14 @@ export function ThoughtSpace({
           renderSpace();
         };
 
+        const syncViewport = () => {
+          camera.dispatch({
+            type: 'viewport-resize',
+            size: { width: app.screen.width, height: app.screen.height },
+          });
+          renderSpace();
+        };
+
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
         window.addEventListener('keydown', onKeyDown);
@@ -281,8 +289,8 @@ export function ThoughtSpace({
         canvas.addEventListener('dblclick', onDoubleClick);
         canvas.addEventListener('pointerdown', onPointerDown);
         canvas.addEventListener('wheel', onWheel, { passive: false });
-        app.renderer.on('resize', renderSpace);
-        renderSpace();
+        app.renderer.on('resize', syncViewport);
+        syncViewport();
 
         canvas.dataset.cleanup = 'ready';
         Object.assign(canvas, {
@@ -294,6 +302,7 @@ export function ThoughtSpace({
             canvas?.removeEventListener('dblclick', onDoubleClick);
             canvas?.removeEventListener('pointerdown', onPointerDown);
             canvas?.removeEventListener('wheel', onWheel);
+            app.renderer.off('resize', syncViewport);
           },
         });
       });
