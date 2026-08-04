@@ -21,3 +21,7 @@ press Enter to keep it, Shift+Enter for a line break, or Escape to cancel.
 
 The reflection interface follows the selected Drift direction: the spatial field is
 the interface, with quick capture available without requiring organization.
+
+## License
+
+[MIT](LICENSE)
