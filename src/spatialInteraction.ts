@@ -6,6 +6,7 @@ import {
   type SpatialFieldSnapshot,
 } from './spatialField';
 import { loadStoredSpace, saveStoredSpace, type SpaceStorage } from './spaceStorage';
+import { normalizeThoughtTone } from './thoughtTone';
 import type { SpaceState, Thought } from './types';
 
 export type PointerKind = string;
@@ -15,7 +16,7 @@ export type SpatialInteractionInput =
   | { type: 'clear-selection' }
   | { type: 'delete-selection' }
   | { type: 'edit-thought'; id: string; text: string }
-  | { type: 'create-thought'; id: string; text: string; position: Point }
+  | { type: 'create-thought'; id: string; text: string; position: Point; tone: number }
   | {
       type: 'canvas-pointer-down';
       point: Point;
@@ -37,12 +38,17 @@ export type SpatialInteractionInput =
   | { type: 'canvas-click'; point: Point }
   | { type: 'canvas-double-click'; point: Point }
   | { type: 'wheel'; point: Point; deltaY: number; pinching: boolean }
-  | { type: 'key-down'; key: 'Enter' | '+' | '-' | '0' }
+  | { type: 'key-down'; key: '+' | '-' | '0' }
   | { type: 'viewport-resize'; size: Size }
   | { type: 'launcher-open'; point: Point };
 
 export type SpatialInteractionEffect =
-  | { type: 'request-create'; screenPosition: Point; worldPosition: Point }
+  | {
+      type: 'request-create';
+      screenPosition: Point;
+      worldPosition: Point;
+      tone: number;
+    }
   | { type: 'request-edit'; thought: Thought; screenPosition: Point }
   | { type: 'empty-activated' };
 
@@ -74,7 +80,6 @@ export function createSpatialInteraction(
   const touchPoints = new Map<number, Point>();
   let pinchGesture = false;
   let pinchActive = false;
-  let pointerPosition: Point | null = null;
   let viewport: Size = { width: 0, height: 0 };
   let durableState = initialState;
   let snapshot = combineSnapshot(field, camera.read());
@@ -127,7 +132,6 @@ export function createSpatialInteraction(
           return finish([], false, 'grabbing');
         }
         case 'surface-pointer-move': {
-          pointerPosition = input.inside ? input.point : null;
           if (input.pointerKind === 'touch' && touchPoints.has(input.pointerId)) {
             touchPoints.set(input.pointerId, input.point);
             if (pinchActive) {
@@ -203,6 +207,7 @@ export function createSpatialInteraction(
               type: 'request-create',
               screenPosition: input.point,
               worldPosition: camera.screenToWorld(input.point),
+              tone: normalizeThoughtTone(field.read().state.thoughts.length),
             },
           ]);
         }
@@ -212,20 +217,6 @@ export function createSpatialInteraction(
           return finish([{ type: 'empty-activated' }], true);
         }
         case 'key-down': {
-          if (input.key === 'Enter') {
-            const screenPosition = pointerPosition ?? {
-              x: viewport.width / 2,
-              y: viewport.height / 2,
-            };
-            clearSelection();
-            return finish([
-              {
-                type: 'request-create',
-                screenPosition,
-                worldPosition: camera.screenToWorld(screenPosition),
-              },
-            ]);
-          }
           const center = { x: viewport.width / 2, y: viewport.height / 2 };
           camera.dispatch({ type: 'zoom-key', key: input.key, center });
           clearSelection();
@@ -243,6 +234,7 @@ export function createSpatialInteraction(
               type: 'request-create',
               screenPosition: input.point,
               worldPosition: camera.screenToWorld(input.point),
+              tone: normalizeThoughtTone(field.read().state.thoughts.length),
             },
           ]);
         }

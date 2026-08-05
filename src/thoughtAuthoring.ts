@@ -7,22 +7,24 @@ export type ThoughtAuthoringState =
       mode: 'creating';
       screenPosition: Point;
       worldPosition: Point;
+      tone: number;
     }
   | {
       mode: 'editing';
       id: string;
       initialText: string;
       screenPosition: Point;
+      tone: number;
     };
 
 export type ThoughtAuthoringInput =
-  | { type: 'open-create'; screenPosition: Point; worldPosition: Point }
+  | { type: 'open-create'; screenPosition: Point; worldPosition: Point; tone: number }
   | { type: 'open-edit'; thought: Thought; screenPosition: Point }
   | { type: 'cancel' }
   | { type: 'keep'; text: string };
 
 export type ThoughtAuthoringCommand =
-  | { type: 'create-thought'; id: string; text: string; position: Point }
+  | { type: 'create-thought'; id: string; text: string; position: Point; tone: number }
   | { type: 'edit-thought'; id: string; text: string };
 
 export type ScreenThought = {
@@ -56,6 +58,7 @@ export function createThoughtAuthoring(): ThoughtAuthoring {
             mode: 'creating',
             screenPosition: input.screenPosition,
             worldPosition: input.worldPosition,
+            tone: input.tone,
           };
           return [];
         case 'open-edit':
@@ -64,6 +67,7 @@ export function createThoughtAuthoring(): ThoughtAuthoring {
             id: input.thought.id,
             initialText: input.thought.text,
             screenPosition: input.screenPosition,
+            tone: input.thought.tone,
           };
           return [];
         case 'cancel':
@@ -79,6 +83,7 @@ export function createThoughtAuthoring(): ThoughtAuthoring {
                   id: `thought-${Date.now()}`,
                   text,
                   position: state.worldPosition,
+                  tone: state.tone,
                 }
               : { type: 'edit-thought', id: state.id, text };
           state = { mode: 'idle' };

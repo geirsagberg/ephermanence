@@ -1,5 +1,5 @@
 import { Grip, Pencil, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import {
   defaultAmbientBubbleSettings,
@@ -14,6 +14,8 @@ import type {
   SpatialInteractionTransition,
 } from '../spatialInteraction';
 import type { ThoughtAuthoring } from '../thoughtAuthoring';
+import { positionThoughtActions, THOUGHT_ACTION_SIZE } from '../thoughtActions';
+import { getThoughtTone } from '../thoughtTone';
 import { ThoughtLauncher } from './ThoughtLauncher';
 
 type ThoughtSpaceProps = {
@@ -22,6 +24,7 @@ type ThoughtSpaceProps = {
   onInput: (input: SpatialInteractionInput) => SpatialInteractionTransition;
   findFreePosition: ThoughtAuthoring['findFreePosition'];
   composerOpen?: boolean;
+  editingThoughtId?: string;
   ambientBubbleSettings?: AmbientBubbleSettings;
   className?: string;
 };
@@ -32,16 +35,31 @@ export function ThoughtSpace({
   onInput,
   findFreePosition,
   composerOpen = false,
+  editingThoughtId,
   ambientBubbleSettings = defaultAmbientBubbleSettings,
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const [launchRequest, setLaunchRequest] = useState(0);
   const onInputRef = useRef(onInput);
   const ambientBubbleSettingsRef = useRef(ambientBubbleSettings);
+  const editingThoughtIdRef = useRef(editingThoughtId);
 
   onInputRef.current = onInput;
   ambientBubbleSettingsRef.current = ambientBubbleSettings;
-
+  editingThoughtIdRef.current = editingThoughtId;
+  const getNewThoughtPosition = () => {
+    const current = interaction.read();
+    const currentZoom = current.camera.zoom;
+    return findFreePosition({
+      thoughts: current.state.thoughts.map((thought) => ({
+        ...interaction.worldToScreen(thought),
+        radius: thought.radius * currentZoom,
+      })),
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      zoom: currentZoom,
+    });
+  };
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -66,7 +84,11 @@ export function ThoughtSpace({
         return;
       }
       canvas = mountedScene.canvas;
-      renderSpace = () => mountedScene.render(ambientBubbleSettingsRef.current);
+      renderSpace = () =>
+        mountedScene.render(
+          ambientBubbleSettingsRef.current,
+          editingThoughtIdRef.current,
+        );
 
       const onMove = (event: PointerEvent) => {
         const rect = mountedScene.canvas.getBoundingClientRect();
@@ -169,10 +191,11 @@ export function ThoughtSpace({
         if (event.key === 'Enter' && event.repeat) return;
 
         event.preventDefault();
-        const transition = onInputRef.current({
-          type: 'key-down',
-          key: event.key,
-        });
+        if (event.key === 'Enter') {
+          setLaunchRequest((request) => request + 1);
+          return;
+        }
+        const transition = onInputRef.current({ type: 'key-down', key: event.key });
         if (transition.render) renderSpace();
       };
 
@@ -224,7 +247,12 @@ export function ThoughtSpace({
   useEffect(() => {
     const canvas = hostRef.current?.querySelector('canvas');
     if (canvas) window.dispatchEvent(new Event('resize'));
-  }, [snapshot.state, snapshot.attachmentCandidateIds, ambientBubbleSettings]);
+  }, [
+    snapshot.state,
+    snapshot.attachmentCandidateIds,
+    ambientBubbleSettings,
+    editingThoughtId,
+  ]);
 
   const selectedThought = snapshot.state.thoughts.find(
     (thought) => thought.id === snapshot.selectedId,
@@ -233,17 +261,23 @@ export function ThoughtSpace({
   const selectedPosition =
     selectedThought && host ? interaction.worldToScreen(selectedThought) : null;
   const zoom = snapshot.camera.zoom;
+  const actionPositions =
+    selectedThought && selectedPosition
+      ? positionThoughtActions(selectedPosition, selectedThought.radius * zoom)
+      : null;
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
-      {selectedThought && selectedPosition && (
+      {selectedThought && selectedPosition && actionPositions && (
         <>
           <button
             title="Edit thought"
             className="bubble-edit"
             style={{
-              left: selectedPosition.x - selectedThought.radius * zoom * 0.69,
-              top: selectedPosition.y - selectedThought.radius * zoom * 0.69,
+              left: actionPositions.edit.x,
+              top: actionPositions.edit.y,
+              width: THOUGHT_ACTION_SIZE,
+              height: THOUGHT_ACTION_SIZE,
             }}
             onClick={() => {
               onInputRef.current({
@@ -259,8 +293,10 @@ export function ThoughtSpace({
             title="Delete thought"
             className="bubble-delete"
             style={{
-              left: selectedPosition.x + selectedThought.radius * zoom * 0.69,
-              top: selectedPosition.y - selectedThought.radius * zoom * 0.69,
+              left: actionPositions.delete.x,
+              top: actionPositions.delete.y,
+              width: THOUGHT_ACTION_SIZE,
+              height: THOUGHT_ACTION_SIZE,
             }}
             onClick={() => {
               onInputRef.current({ type: 'delete-selection' });
@@ -273,8 +309,10 @@ export function ThoughtSpace({
             title="Move thought independently"
             className="bubble-grab"
             style={{
-              left: selectedPosition.x,
-              top: selectedPosition.y + selectedThought.radius * zoom * 0.99,
+              left: actionPositions.grab.x,
+              top: actionPositions.grab.y,
+              width: THOUGHT_ACTION_SIZE,
+              height: THOUGHT_ACTION_SIZE,
             }}
             onPointerDown={(event) => {
               event.preventDefault();
@@ -300,18 +338,9 @@ export function ThoughtSpace({
       )}
       <ThoughtLauncher
         composerOpen={composerOpen}
-        getTapPosition={() => {
-          const current = interaction.read();
-          const currentZoom = current.camera.zoom;
-          return findFreePosition({
-            thoughts: current.state.thoughts.map((thought) => ({
-              ...interaction.worldToScreen(thought),
-              radius: thought.radius * currentZoom,
-            })),
-            viewport: { width: window.innerWidth, height: window.innerHeight },
-            zoom: currentZoom,
-          });
-        }}
+        getTapPosition={getNewThoughtPosition}
+        launchRequest={launchRequest}
+        toneColor={getThoughtTone(snapshot.state.thoughts.length).css}
         onOpen={(screenPosition) => {
           onInputRef.current({ type: 'launcher-open', point: screenPosition });
         }}

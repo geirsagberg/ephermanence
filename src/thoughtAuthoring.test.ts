@@ -12,6 +12,7 @@ describe('Thought authoring', () => {
       type: 'open-create',
       screenPosition: { x: 195, y: 388 },
       worldPosition: { x: -20, y: 70 },
+      tone: 3,
     });
 
     expect(authoring.dispatch({ type: 'keep', text: '  A thought  ' })).toEqual([
@@ -20,6 +21,7 @@ describe('Thought authoring', () => {
         id: 'thought-42',
         text: 'A thought',
         position: { x: -20, y: 70 },
+        tone: 3,
       },
     ]);
     expect(authoring.read()).toEqual({ mode: 'idle' });
@@ -53,6 +55,7 @@ describe('Thought authoring', () => {
       type: 'open-create',
       screenPosition: { x: 10, y: 20 },
       worldPosition: { x: 30, y: 40 },
+      tone: 0,
     });
 
     expect(authoring.dispatch({ type: 'cancel' })).toEqual([]);

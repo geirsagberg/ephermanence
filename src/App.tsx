@@ -17,6 +17,7 @@ import {
 } from './spatialInteraction';
 import type { SpaceStorage } from './spaceStorage';
 import { createThoughtAuthoring, type ThoughtAuthoringInput } from './thoughtAuthoring';
+import { getThoughtTone } from './thoughtTone';
 
 function Wordmark() {
   return (
@@ -57,6 +58,7 @@ export function App() {
               type: 'open-create',
               screenPosition: effect.screenPosition,
               worldPosition: effect.worldPosition,
+              tone: effect.tone,
             });
             break;
           case 'request-edit':
@@ -99,6 +101,9 @@ export function App() {
           findFreePosition={authoring.findFreePosition}
           ambientBubbleSettings={ambientBubbleSettings}
           composerOpen={authoringState.mode !== 'idle'}
+          editingThoughtId={
+            authoringState.mode === 'editing' ? authoringState.id : undefined
+          }
         />
       </main>
       {tuningAmbientBubbles && (
@@ -118,6 +123,7 @@ export function App() {
             authoringState.mode === 'editing' ? authoringState.initialText : undefined
           }
           label={authoringState.mode === 'editing' ? 'Edit thought' : undefined}
+          toneColor={getThoughtTone(authoringState.tone).css}
           onCancel={() => sendToAuthoring({ type: 'cancel' })}
           onKeep={(text) => sendToAuthoring({ type: 'keep', text })}
         />

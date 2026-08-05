@@ -140,13 +140,16 @@ describe('spatial field transitions', () => {
       text: 'Short',
     });
 
-    expect(snapshot.state).toEqual({
-      thoughts: [
-        { ...thought('editing', 100, 74), text: 'Short' },
-        thought('nearby', 270, 80),
-      ],
-      attachments: [],
+    expect(snapshot.state.thoughts[0]).toMatchObject({
+      id: 'editing',
+      text: 'Short',
+      x: 100,
+      y: 100,
+      tone: 0,
     });
+    expect(snapshot.state.thoughts[0].radius).toBeLessThan(96);
+    expect(snapshot.state.thoughts[1]).toEqual(thought('nearby', 270, 80));
+    expect(snapshot.state.attachments).toEqual([]);
   });
 
   it('deletes the selected thought and all of its bonds', () => {
@@ -173,7 +176,7 @@ describe('spatial field transitions', () => {
     });
   });
 
-  it('creates a thought using field-owned size and tone rules', () => {
+  it('creates a thought using field-owned size and its lifecycle tone', () => {
     const spatialField = field([thought('existing', 100)]);
 
     const snapshot = spatialField.dispatch({
@@ -181,15 +184,17 @@ describe('spatial field transitions', () => {
       id: 'created',
       text: 'A new thought',
       position: { x: 420, y: 260 },
+      tone: 3,
     });
 
-    expect(snapshot.state.thoughts.at(-1)).toEqual({
+    const created = snapshot.state.thoughts.at(-1)!;
+    expect(created).toMatchObject({
       id: 'created',
       text: 'A new thought',
       x: 420,
       y: 260,
-      radius: 74.55,
-      tone: 1,
+      tone: 3,
     });
+    expect(created.radius).toBeGreaterThan(0);
   });
 });

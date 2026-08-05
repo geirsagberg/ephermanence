@@ -12,6 +12,7 @@ import type {
   SpatialInteractionSnapshot,
 } from './spatialInteraction';
 import type { Point } from './spatialField';
+import { getThoughtTone } from './thoughtTone';
 
 export type WorldBounds = {
   left: number;
@@ -47,6 +48,7 @@ export class SpatialFieldScene extends Container {
     snapshot: SpatialInteractionSnapshot,
     bounds: WorldBounds,
     settings: AmbientBubbleSettings = defaultAmbientBubbleSettings,
+    hiddenThoughtId?: string,
   ) {
     const { camera, state, attachmentCandidateIds } = snapshot;
     this.ambient.position.set(camera.x, camera.y);
@@ -71,6 +73,7 @@ export class SpatialFieldScene extends Container {
     }
 
     for (const thought of state.thoughts) {
+      if (thought.id === hiddenThoughtId) continue;
       this.foreground.addChild(
         createThoughtBubble(
           thought,
@@ -85,7 +88,7 @@ export class SpatialFieldScene extends Container {
 export type MountedSpatialFieldScene = {
   canvas: HTMLCanvasElement;
   screen: { width: number; height: number };
-  render: (settings?: AmbientBubbleSettings) => void;
+  render: (settings?: AmbientBubbleSettings, hiddenThoughtId?: string) => void;
   onResize: (listener: () => void) => () => void;
   destroy: () => void;
 };
@@ -113,7 +116,7 @@ export async function mountSpatialFieldScene(
     get screen() {
       return app.screen;
     },
-    render(settings = defaultAmbientBubbleSettings) {
+    render(settings = defaultAmbientBubbleSettings, hiddenThoughtId) {
       const topLeft = interaction.screenToWorld({ x: 0, y: 0 });
       const bottomRight = interaction.screenToWorld({
         x: app.screen.width,
@@ -128,6 +131,7 @@ export async function mountSpatialFieldScene(
           bottom: bottomRight.y,
         },
         settings,
+        hiddenThoughtId,
       );
     },
     onResize(listener) {
@@ -139,8 +143,6 @@ export async function mountSpatialFieldScene(
     },
   };
 }
-
-const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 
 function createThoughtBubble(
   thought: SpatialInteractionSnapshot['state']['thoughts'][number],
@@ -167,7 +169,7 @@ function createThoughtBubble(
     : null;
   const body = new Graphics()
     .circle(0, 0, thought.radius)
-    .fill({ color: palette[thought.tone % palette.length], alpha: 0.96 })
+    .fill({ color: getThoughtTone(thought.tone).canvas, alpha: 0.96 })
     .circle(-thought.radius * 0.22, -thought.radius * 0.24, thought.radius * 0.66)
     .fill({ color: 0xffffff, alpha: 0.15 })
     .circle(0, 0, thought.radius - 1)

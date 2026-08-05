@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export type DraftPosition = { x: number; y: number };
 
@@ -8,6 +9,7 @@ type SpatialThoughtComposerProps = {
   label?: string;
   onCancel: () => void;
   onKeep: (text: string) => void;
+  toneColor: string;
 };
 
 export function SpatialThoughtComposer({
@@ -16,10 +18,20 @@ export function SpatialThoughtComposer({
   label = 'New thought at this position',
   onCancel,
   onKeep,
+  toneColor,
 }: SpatialThoughtComposerProps) {
   const [text, setText] = useState(initialText);
   const formRef = useRef<HTMLFormElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const savedRef = useRef(false);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.focus();
+    const end = textarea.value.length;
+    textarea.setSelectionRange(end, end);
+  }, []);
 
   const keep = useCallback(() => {
     const next = text.trim();
@@ -41,14 +53,20 @@ export function SpatialThoughtComposer({
     <form
       ref={formRef}
       className="spatial-composer"
-      style={{ left: position.x, top: position.y }}
+      style={
+        {
+          left: position.x,
+          top: position.y,
+          '--thought-tone': toneColor,
+        } as CSSProperties & Record<'--thought-tone', string>
+      }
       onSubmit={(event) => {
         event.preventDefault();
         keep();
       }}
     >
       <textarea
-        autoFocus
+        ref={textareaRef}
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {

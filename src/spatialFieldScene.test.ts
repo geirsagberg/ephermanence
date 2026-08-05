@@ -60,6 +60,30 @@ describe('spatial field scene', () => {
     expect(foreground(scene).children[2].eventMode).toBe('static');
   });
 
+  it('hides the edited Thought while preserving its Bonds', () => {
+    const scene = new SpatialFieldScene();
+    const first = {
+      id: 'editing',
+      text: 'Editing',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    const second = { ...first, id: 'visible', text: 'Visible', x: 100 };
+
+    scene.render(
+      snapshot({ thoughts: [first, second], attachments: [['editing', 'visible']] }),
+      viewport,
+      defaultAmbientBubbleSettings,
+      'editing',
+    );
+
+    expect(foreground(scene).children).toHaveLength(2);
+    expect(foreground(scene).children[1].x).toBe(100);
+    expect(foreground(scene).children[1].eventMode).toBe('static');
+  });
+
   it('reuses cached ambient chunks while the visible world is unchanged', () => {
     const scene = new SpatialFieldScene();
     scene.render(snapshot(), viewport);

@@ -174,6 +174,7 @@ describe('spatial field interaction', () => {
         type: 'request-create',
         screenPosition: { x: 650, y: 450 },
         worldPosition: { x: 150, y: 50 },
+        tone: 0,
       },
     ]);
   });
@@ -193,7 +194,7 @@ describe('spatial field interaction', () => {
     ]);
   });
 
-  it('opens creation at the pointer, then falls back to viewport center', () => {
+  it('opens launcher creation at the supplied free position, not the pointer', () => {
     const spatialInteraction = interaction();
     spatialInteraction.dispatch({
       type: 'surface-pointer-move',
@@ -204,25 +205,15 @@ describe('spatial field interaction', () => {
     });
 
     expect(
-      spatialInteraction.dispatch({ type: 'key-down', key: 'Enter' }).effects[0],
+      spatialInteraction.dispatch({
+        type: 'launcher-open',
+        point: { x: 500, y: 368 },
+      }).effects[0],
     ).toMatchObject({
       type: 'request-create',
-      screenPosition: { x: 700, y: 300 },
-    });
-
-    spatialInteraction.dispatch({
-      type: 'surface-pointer-move',
-      point: { x: 1200, y: 300 },
-      pointerId: 1,
-      pointerKind: 'mouse',
-      inside: false,
-    });
-
-    expect(
-      spatialInteraction.dispatch({ type: 'key-down', key: 'Enter' }).effects[0],
-    ).toMatchObject({
-      type: 'request-create',
-      screenPosition: { x: 500, y: 400 },
+      screenPosition: { x: 500, y: 368 },
+      worldPosition: { x: 0, y: -32 },
+      tone: 0,
     });
   });
 
@@ -252,6 +243,7 @@ describe('spatial field interaction', () => {
       id: 'created',
       text: 'Durable',
       position: { x: 10, y: 20 },
+      tone: 2,
     });
 
     expect(JSON.parse(memory.read()!)).toEqual(spatialInteraction.read().state);

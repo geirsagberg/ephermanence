@@ -9,7 +9,7 @@ export type SpatialFieldInput =
   | { type: 'clear-selection' }
   | { type: 'delete-selection' }
   | { type: 'edit-thought'; id: string; text: string }
-  | { type: 'create-thought'; id: string; text: string; position: Point };
+  | { type: 'create-thought'; id: string; text: string; position: Point; tone: number };
 
 export type SpatialFieldSnapshot = {
   state: SpaceState;
@@ -165,7 +165,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
                 text: input.text,
                 ...input.position,
                 radius: thoughtRadius(input.text),
-                tone: state.thoughts.length % 5,
+                tone: input.tone,
               },
             ],
           };
@@ -208,9 +208,9 @@ function bringThoughtToFrontWhenAlone(
 }
 
 function thoughtRadius(text: string) {
-  const min = 74;
+  const min = 64;
   const max = 128;
-  const radius = 70 + text.length * 0.35;
+  const radius = 60 + text.length * 0.35;
   return Math.max(min, Math.min(max, radius));
 }
 
