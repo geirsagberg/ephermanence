@@ -1,3 +1,4 @@
+import { Grip, Pencil, X } from 'lucide-react';
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
@@ -5,6 +6,10 @@ import { createSpaceCamera } from '../spaceCamera';
 import { hintForSpace } from '../spaceHint';
 import type { SpatialFieldInput } from '../spatialField';
 import type { SpaceState, Thought } from '../types';
+import {
+  ThoughtLauncherPrototype,
+  type LauncherVariant,
+} from './ThoughtLauncherPrototype';
 
 const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 
@@ -21,6 +26,8 @@ type ThoughtSpaceProps = {
   ) => void;
   onEditRequest?: (thought: Thought, position: { x: number; y: number }) => void;
   onEmptyClick?: () => void;
+  launcherVariant?: LauncherVariant;
+  composerOpen?: boolean;
   className?: string;
 };
 
@@ -34,6 +41,8 @@ export function ThoughtSpace({
   onCreateRequest,
   onEditRequest,
   onEmptyClick,
+  launcherVariant,
+  composerOpen = false,
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -438,7 +447,7 @@ export function ThoughtSpace({
             }}
             aria-label={`Edit thought: ${selectedThought.text}`}
           >
-            <span aria-hidden="true">✎</span>
+            <Pencil size={14} strokeWidth={1.8} aria-hidden="true" />
           </button>
           <button
             title="Delete thought"
@@ -454,7 +463,7 @@ export function ThoughtSpace({
             }}
             aria-label={`Delete thought: ${selectedThought.text}`}
           >
-            ×
+            <X size={16} strokeWidth={1.8} aria-hidden="true" />
           </button>
           <button
             title="Move thought independently"
@@ -482,9 +491,22 @@ export function ThoughtSpace({
             }}
             aria-label={`Move thought independently: ${selectedThought.text}`}
           >
-            <span className="bubble-grab__dots" aria-hidden="true" />
+            <Grip size={14} strokeWidth={1.8} aria-hidden="true" />
           </button>
         </>
+      )}
+      {launcherVariant && (
+        <ThoughtLauncherPrototype
+          variant={launcherVariant}
+          composerOpen={composerOpen}
+          onOpen={(screenPosition) => {
+            onInputRef.current({ type: 'clear-selection' });
+            onCreateRequestRef.current?.(
+              screenPosition,
+              camera.screenToWorld(screenPosition),
+            );
+          }}
+        />
       )}
     </div>
   );

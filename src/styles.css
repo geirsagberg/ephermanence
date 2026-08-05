@@ -29,6 +29,8 @@ textarea {
 
 button {
   color: inherit;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 button:focus-visible,
@@ -103,15 +105,7 @@ textarea:focus-visible {
 
 .bubble-edit,
 .bubble-delete {
-  padding-bottom: 2px;
-  font-size: 18px;
-  line-height: 1;
   cursor: pointer;
-}
-
-.bubble-edit {
-  padding: 0 1px 1px 0;
-  font-size: 16px;
 }
 
 .bubble-grab {
@@ -127,14 +121,6 @@ textarea:focus-visible {
 
 .bubble-grab:active {
   cursor: grabbing;
-}
-
-.bubble-grab__dots {
-  width: 12px;
-  height: 12px;
-  background-image: radial-gradient(circle, currentcolor 1.25px, transparent 1.5px);
-  background-position: 0 0;
-  background-size: 6px 6px;
 }
 
 .wordmark {
@@ -249,6 +235,194 @@ textarea:focus-visible {
   color: rgb(38 49 45 / 46%);
   font-size: 9px;
   letter-spacing: 0.04em;
+}
+
+/* PROTOTYPE — mobile-first launcher/composer interaction. */
+.thought-launcher {
+  position: fixed;
+  z-index: 8;
+  inset: 0;
+  pointer-events: none;
+}
+
+.thought-launcher__bubble {
+  position: fixed;
+  right: auto;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  padding: 0 0 3px;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 28%, rgb(255 255 255 / 58%), transparent 34%), #dce8e0;
+  box-shadow:
+    0 10px 28px rgb(48 61 54 / 20%),
+    inset 0 -4px 12px rgb(70 92 80 / 8%);
+  color: #43544b;
+  cursor: grab;
+  touch-action: none;
+  transform: translateX(-50%);
+  transition:
+    width 180ms ease,
+    height 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.thought-launcher__bubble:active {
+  width: 66px;
+  height: 66px;
+  box-shadow: 0 14px 34px rgb(48 61 54 / 25%);
+  cursor: grabbing;
+}
+
+.thought-launcher--b .thought-launcher__bubble {
+  border-color: rgb(80 99 88 / 22%);
+  background: #f0e7d8;
+}
+
+.thought-launcher--c .thought-launcher__bubble {
+  width: 66px;
+  height: 66px;
+  background: #e7e0ed;
+}
+
+.thought-launcher__tether {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.thought-launcher__tether line {
+  stroke: rgb(94 111 101 / 28%);
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+  stroke-width: 2px;
+}
+
+.spatial-composer--a {
+  animation: composer-bloom 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.spatial-composer--b {
+  top: auto !important;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 50% !important;
+  width: min(330px, calc(100vw - 32px));
+  height: 188px;
+  padding: 34px 34px 26px;
+  border-radius: 92px 92px 44px 44px;
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+  animation: composer-rise 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.spatial-composer--b textarea {
+  height: 76px;
+}
+
+.spatial-composer--c {
+  top: 52% !important;
+  left: 50% !important;
+  width: min(360px, calc(100vw - 28px));
+  height: min(360px, calc(100vw - 28px));
+  padding: 72px 48px 54px;
+  background: rgb(232 225 239 / 98%);
+  box-shadow:
+    0 0 0 100vmax rgb(232 232 225 / 76%),
+    4px 18px 40px rgb(62 67 61 / 18%);
+  animation: composer-bloom 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.spatial-composer--c textarea {
+  height: 120px;
+  font-size: 22px;
+}
+
+.spatial-composer__hint {
+  display: block;
+}
+
+.prototype-switcher {
+  position: fixed;
+  z-index: 20;
+  bottom: max(94px, calc(env(safe-area-inset-bottom) + 82px));
+  left: 50%;
+  display: grid;
+  grid-template-columns: 38px minmax(118px, auto) 38px;
+  align-items: center;
+  padding: 5px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
+  background: rgb(35 43 39 / 90%);
+  box-shadow: 0 8px 24px rgb(28 35 31 / 20%);
+  color: #f8f5ed;
+  transform: translateX(-50%);
+  backdrop-filter: blur(12px);
+}
+
+.prototype-switcher button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.prototype-switcher button:hover {
+  background: rgb(255 255 255 / 10%);
+}
+
+.prototype-switcher output {
+  display: flex;
+  gap: 7px;
+  align-items: baseline;
+  justify-content: center;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.prototype-switcher strong {
+  font-size: 11px;
+}
+
+.prototype-switcher span {
+  color: rgb(248 245 237 / 70%);
+}
+
+@keyframes composer-bloom {
+  from {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(0.25);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes composer-rise {
+  from {
+    opacity: 0.4;
+    transform: translateX(-50%) scale(0.28);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
 }
 
 @media (max-width: 720px) {
