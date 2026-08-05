@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { createSpatialInteraction } from './spatialInteraction';
+import { SPACE_STORAGE_KEY, type SpaceStorage } from './spaceStorage';
 import type { Thought } from './types';
 
 function thought(id: string, x: number, y = 100): Thought {
@@ -14,6 +15,24 @@ function interaction(thoughts: Thought[] = []) {
     size: { width: 1000, height: 800 },
   });
   return spatialInteraction;
+}
+
+function memoryStorage(initialValue?: string) {
+  const values = new Map<string, string>();
+  if (initialValue !== undefined) values.set(SPACE_STORAGE_KEY, initialValue);
+  let writes = 0;
+  const storage: SpaceStorage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => {
+      writes += 1;
+      values.set(key, value);
+    },
+  };
+  return {
+    storage,
+    read: () => values.get(SPACE_STORAGE_KEY),
+    writes: () => writes,
+  };
 }
 
 describe('spatial field interaction', () => {
@@ -205,5 +224,75 @@ describe('spatial field interaction', () => {
       type: 'request-create',
       screenPosition: { x: 500, y: 400 },
     });
+  });
+
+  it('loads the durable spatial field before using the fallback', () => {
+    const storedThought = thought('stored', 40);
+    const memory = memoryStorage(
+      JSON.stringify({ thoughts: [storedThought], attachments: [] }),
+    );
+
+    const spatialInteraction = createSpatialInteraction(
+      { thoughts: [thought('fallback', 10)], attachments: [] },
+      memory.storage,
+    );
+
+    expect(spatialInteraction.read().state.thoughts).toEqual([storedThought]);
+  });
+
+  it('commits durable field commands without caller-owned policy', () => {
+    const memory = memoryStorage();
+    const spatialInteraction = createSpatialInteraction(
+      { thoughts: [], attachments: [] },
+      memory.storage,
+    );
+
+    spatialInteraction.dispatch({
+      type: 'create-thought',
+      id: 'created',
+      text: 'Durable',
+      position: { x: 10, y: 20 },
+    });
+
+    expect(JSON.parse(memory.read()!)).toEqual(spatialInteraction.read().state);
+    expect(memory.writes()).toBe(1);
+  });
+
+  it('waits until pointer-up to commit a dragged Thought', () => {
+    const existing = thought('moving', 0, 0);
+    const memory = memoryStorage();
+    const spatialInteraction = createSpatialInteraction(
+      { thoughts: [existing], attachments: [] },
+      memory.storage,
+    );
+    spatialInteraction.dispatch({
+      type: 'viewport-resize',
+      size: { width: 1000, height: 800 },
+    });
+    const point = spatialInteraction.worldToScreen(existing);
+    spatialInteraction.dispatch({
+      type: 'thought-pointer-down',
+      id: existing.id,
+      point,
+      singular: false,
+    });
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: point.x + 20, y: point.y },
+      pointerId: 1,
+      pointerKind: 'mouse',
+      inside: true,
+    });
+
+    expect(memory.writes()).toBe(0);
+
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-up',
+      pointerId: 1,
+      pointerKind: 'mouse',
+    });
+
+    expect(memory.writes()).toBe(1);
+    expect(JSON.parse(memory.read()!).thoughts[0].x).toBe(20);
   });
 });

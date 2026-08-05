@@ -19,7 +19,7 @@ import {
   type SpatialInteractionEffect,
   type SpatialInteractionInput,
 } from './spatialInteraction';
-import { loadStoredSpace, saveStoredSpace, type SpaceStorage } from './spaceStorage';
+import type { SpaceStorage } from './spaceStorage';
 
 function Wordmark() {
   return (
@@ -42,9 +42,7 @@ export function App() {
     }
   });
   const [interaction] = useState(() => {
-    const initialState =
-      loadStoredSpace(storage) ?? spaceForQuery(window.location.search);
-    return createSpatialInteraction(initialState);
+    return createSpatialInteraction(spaceForQuery(window.location.search), storage);
   });
   const [interactionSnapshot, setInteractionSnapshot] = useState(interaction.read);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
@@ -60,9 +58,6 @@ export function App() {
     (input: SpatialInteractionInput) => {
       const transition = interaction.dispatch(input);
       setInteractionSnapshot(transition.snapshot);
-      if (shouldPersist(input)) {
-        saveStoredSpace(storage, transition.snapshot.state);
-      }
       applyEffects(transition.effects, {
         openCreate(screenPosition, worldPosition) {
           setDraftPosition(screenPosition);
@@ -82,7 +77,7 @@ export function App() {
       });
       return transition;
     },
-    [interaction, storage],
+    [interaction],
   );
 
   const createThought = (text: string, position: DraftPosition) => {
@@ -181,15 +176,6 @@ function writeAmbientBubbleSettings(
 function readNumber(query: URLSearchParams, key: string, fallback: number) {
   const value = Number(query.get(key));
   return Number.isFinite(value) && query.has(key) ? value : fallback;
-}
-
-function shouldPersist(input: SpatialInteractionInput) {
-  return (
-    input.type === 'surface-pointer-up' ||
-    input.type === 'delete-selection' ||
-    input.type === 'edit-thought' ||
-    input.type === 'create-thought'
-  );
 }
 
 type EffectHandlers = {

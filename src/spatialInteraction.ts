@@ -5,6 +5,7 @@ import {
   type SpatialField,
   type SpatialFieldSnapshot,
 } from './spatialField';
+import { loadStoredSpace, saveStoredSpace, type SpaceStorage } from './spaceStorage';
 import type { SpaceState, Thought } from './types';
 
 export type PointerKind = string;
@@ -63,22 +64,35 @@ export type SpatialInteraction = {
   worldToScreen: (point: Point) => Point;
 };
 
-export function createSpatialInteraction(initialState: SpaceState): SpatialInteraction {
+export function createSpatialInteraction(
+  fallbackState: SpaceState,
+  storage: SpaceStorage | null = null,
+): SpatialInteraction {
   const camera = createSpaceCamera();
+  const initialState = loadStoredSpace(storage) ?? fallbackState;
   const field = createSpatialField(initialState);
   const touchPoints = new Map<number, Point>();
   let pinchGesture = false;
   let pinchActive = false;
   let pointerPosition: Point | null = null;
   let viewport: Size = { width: 0, height: 0 };
+  let durableState = initialState;
   let snapshot = combineSnapshot(field, camera.read());
 
   const finish = (
     effects: SpatialInteractionEffect[] = [],
     render = false,
     cursor?: SpatialInteractionTransition['cursor'],
+    commit = false,
   ): SpatialInteractionTransition => {
     snapshot = combineSnapshot(field, camera.read(), snapshot);
+    if (
+      commit &&
+      snapshot.state !== durableState &&
+      saveStoredSpace(storage, snapshot.state)
+    ) {
+      durableState = snapshot.state;
+    }
     return { snapshot, effects, render, cursor };
   };
 
@@ -163,7 +177,7 @@ export function createSpatialInteraction(initialState: SpaceState): SpatialInter
           if (cameraUp.handled) return finish([], false, 'pointer');
           const before = field.read();
           field.dispatch({ type: 'pointer-up' });
-          return finish([], field.read() !== before, 'pointer');
+          return finish([], field.read() !== before, 'pointer', true);
         }
         case 'canvas-click': {
           if (thoughtAt(input.point, field.read().state.thoughts, camera)) {
@@ -235,11 +249,24 @@ export function createSpatialInteraction(initialState: SpaceState): SpatialInter
         default: {
           const before = field.read();
           field.dispatch(input);
-          return finish([], field.read() !== before);
+          return finish(
+            [],
+            field.read() !== before,
+            undefined,
+            isDurableFieldInput(input),
+          );
         }
       }
     },
   };
+}
+
+function isDurableFieldInput(input: SpatialInteractionInput) {
+  return (
+    input.type === 'create-thought' ||
+    input.type === 'edit-thought' ||
+    input.type === 'delete-selection'
+  );
 }
 
 function combineSnapshot(
