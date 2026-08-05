@@ -7,6 +7,7 @@ import {
   type FederatedPointerEvent,
   type Ticker,
 } from 'pixi.js';
+import { DropShadowFilter } from 'pixi-filters/drop-shadow';
 
 import type {
   SpatialInteraction,
@@ -41,6 +42,7 @@ type ThoughtPointerDown = (
   pointerId: number,
 ) => void;
 type BondGeometry = { from: Point; to: Point };
+type ThoughtShadowFilterFactory = () => DropShadowFilter;
 
 const bondFadeDuration = 240;
 
@@ -54,7 +56,10 @@ export class SpatialFieldScene extends Container {
     { graphic: Graphics; elapsed: number }
   >();
 
-  constructor(private readonly onThoughtPointerDown: ThoughtPointerDown = () => {}) {
+  constructor(
+    private readonly onThoughtPointerDown: ThoughtPointerDown = () => {},
+    private readonly createThoughtShadowFilter?: ThoughtShadowFilterFactory,
+  ) {
     super();
     this.addChild(this.ambient, this.bondFades, this.foreground);
   }
@@ -117,6 +122,7 @@ export class SpatialFieldScene extends Container {
           thought,
           attachmentCandidateIds.includes(thought.id),
           this.onThoughtPointerDown,
+          this.createThoughtShadowFilter,
         ),
       );
     }
@@ -167,7 +173,7 @@ export async function mountSpatialFieldScene(
     resolution: window.devicePixelRatio,
     autoDensity: true,
   });
-  const scene = new SpatialFieldScene(onThoughtPointerDown);
+  const scene = new SpatialFieldScene(onThoughtPointerDown, createThoughtShadowFilter);
   const advanceBondFades = (ticker: Ticker) => {
     scene.advanceBondFades(ticker.deltaMS);
   };
@@ -214,6 +220,7 @@ function createThoughtBubble(
   thought: SpatialInteractionSnapshot['state']['thoughts'][number],
   attachmentCandidate: boolean,
   onPointerDown: ThoughtPointerDown,
+  createShadowFilter?: ThoughtShadowFilterFactory,
 ) {
   const bubble = new Container();
   bubble.x = thought.x;
@@ -224,9 +231,6 @@ function createThoughtBubble(
     contains: (x: number, y: number) => x * x + y * y <= thought.radius * thought.radius,
   };
 
-  const shadow = new Graphics()
-    .circle(3, 7, thought.radius + 3)
-    .fill({ color: 0x49504a, alpha: 0.07 });
   const attachmentHalo = attachmentCandidate
     ? new Graphics()
         .circle(0, 0, thought.radius + 7)
@@ -240,6 +244,7 @@ function createThoughtBubble(
     .fill({ color: 0xffffff, alpha: 0.15 })
     .circle(0, 0, thought.radius - 1)
     .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
+  if (createShadowFilter) body.filters = [createShadowFilter()];
 
   const label = new Text({
     text: thought.text,
@@ -256,7 +261,7 @@ function createThoughtBubble(
   });
   label.anchor.set(0.5);
   if (attachmentHalo) bubble.addChild(attachmentHalo);
-  bubble.addChild(shadow, body, label);
+  bubble.addChild(body, label);
   bubble.on('pointerdown', (event: FederatedPointerEvent) => {
     onPointerDown(
       thought.id,
@@ -267,6 +272,16 @@ function createThoughtBubble(
     bubble.cursor = 'grabbing';
   });
   return bubble;
+}
+
+function createThoughtShadowFilter() {
+  return new DropShadowFilter({
+    offset: { x: 2, y: 6 },
+    color: 0x49504a,
+    alpha: 0.12,
+    blur: 8,
+    quality: 3,
+  });
 }
 
 const chunkSize = 560;

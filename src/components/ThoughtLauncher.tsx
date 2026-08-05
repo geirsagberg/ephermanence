@@ -149,7 +149,7 @@ const launcherBubbleClass = css({
   borderRadius: '50%',
   background:
     'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 58%), transparent 34%), var(--thought-tone)',
-  boxShadow: '0 10px 28px rgb(48 61 54 / 20%), inset 0 -4px 12px rgb(70 92 80 / 8%)',
+  boxShadow: '0 12px 34px rgb(48 61 54 / 14%), inset 0 -4px 12px rgb(70 92 80 / 6%)',
   color: '#43544b',
   cursor: 'grab',
   touchAction: 'none',
@@ -161,7 +161,7 @@ const launcherBubbleClass = css({
   _active: {
     width: '66px',
     height: '66px',
-    boxShadow: '0 14px 34px rgb(48 61 54 / 25%)',
+    boxShadow: '0 16px 40px rgb(48 61 54 / 18%)',
     cursor: 'grabbing',
   },
 });
@@ -174,6 +174,6 @@ const launcherSeedClass = css({
   borderRadius: '50%',
   background:
     'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 62%), transparent 34%), var(--thought-tone)',
-  boxShadow: '0 10px 28px rgb(48 61 54 / 18%)',
+  boxShadow: '0 12px 34px rgb(48 61 54 / 12%)',
   animation: 'launchSeed 200ms ease-out both',
 });

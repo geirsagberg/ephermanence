@@ -437,7 +437,7 @@ const actionButtonClass = css({
   border: '1px solid rgb(39 48 44 / 18%)',
   borderRadius: '50%',
   background: '#fff',
-  boxShadow: '0 5px 16px rgb(45 52 48 / 14%)',
+  boxShadow: '0 7px 22px rgb(45 52 48 / 10%)',
   color: 'rgb(39 48 44 / 72%)',
   transform: 'translate(-50%, -50%)',
   animation: 'bubbleActionEnter 160ms cubic-bezier(0.2, 0.82, 0.2, 1) both',

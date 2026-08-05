@@ -101,7 +101,7 @@ const composerClass = css({
   border: '1px solid rgb(255 255 255 / 70%)',
   borderRadius: '50%',
   background: 'color-mix(in srgb, var(--thought-tone) 96%, transparent)',
-  boxShadow: '4px 12px 32px rgb(62 67 61 / 14%)',
+  boxShadow: '0 14px 38px rgb(62 67 61 / 10%)',
   transform: 'translate(-50%, -50%)',
   animation: 'composerBloom 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
   '& textarea': {
