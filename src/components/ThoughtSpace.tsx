@@ -22,7 +22,11 @@ import type {
   SpatialInteractionTransition,
 } from '../spatialInteraction';
 import type { ThoughtAuthoring } from '../thoughtAuthoring';
-import { positionThoughtActions, THOUGHT_ACTION_SIZE } from '../thoughtActions';
+import {
+  hasThoughtAttachment,
+  positionThoughtActions,
+  THOUGHT_ACTION_SIZE,
+} from '../thoughtActions';
 import { getThoughtTone } from '../thoughtTone';
 import { ThoughtLauncher } from './ThoughtLauncher';
 
@@ -307,6 +311,9 @@ export function ThoughtSpace({
     selectedThought && selectedPosition
       ? positionThoughtActions(selectedPosition, selectedThought.radius * zoom)
       : null;
+  const selectedThoughtHasBond =
+    selectedThought &&
+    hasThoughtAttachment(selectedThought.id, snapshot.state.attachments);
   const armAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -394,30 +401,32 @@ export function ThoughtSpace({
           >
             <X size={20} strokeWidth={1} aria-hidden="true" />
           </button>
-          <button
-            title="Move thought independently"
-            className={cx(actionButtonClass, grabActionButtonClass)}
-            style={actionStyle(selectedPosition, actionPositions.grab)}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const canvas = hostRef.current?.querySelector('canvas');
-              if (!canvas) return;
-              const rect = canvas.getBoundingClientRect();
-              onInputRef.current({
-                type: 'thought-pointer-down',
-                id: selectedThought.id,
-                point: {
-                  x: event.clientX - rect.left,
-                  y: event.clientY - rect.top,
-                },
-                singular: true,
-              });
-            }}
-            aria-label={`Move thought independently: ${selectedThought.text}`}
-          >
-            <Grip size={20} strokeWidth={1} aria-hidden="true" />
-          </button>
+          {selectedThoughtHasBond && (
+            <button
+              title="Move thought independently"
+              className={cx(actionButtonClass, grabActionButtonClass)}
+              style={actionStyle(selectedPosition, actionPositions.grab)}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const canvas = hostRef.current?.querySelector('canvas');
+                if (!canvas) return;
+                const rect = canvas.getBoundingClientRect();
+                onInputRef.current({
+                  type: 'thought-pointer-down',
+                  id: selectedThought.id,
+                  point: {
+                    x: event.clientX - rect.left,
+                    y: event.clientY - rect.top,
+                  },
+                  singular: true,
+                });
+              }}
+              aria-label={`Move thought independently: ${selectedThought.text}`}
+            >
+              <Grip size={20} strokeWidth={1} aria-hidden="true" />
+            </button>
+          )}
         </Fragment>
       )}
       <ThoughtLauncher
