@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import {
   defaultAmbientBubbleSettings,
   type AmbientBubbleSettings,
-} from './ambientBubbleField';
+} from './spatialFieldScene';
 import {
   ambientBubblePresets,
   AmbientBubbleTuner,

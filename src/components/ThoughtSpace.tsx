@@ -1,12 +1,12 @@
 import { Grip, Pencil, X } from 'lucide-react';
-import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
 import {
-  AmbientBubbleField,
   defaultAmbientBubbleSettings,
+  mountSpatialFieldScene,
   type AmbientBubbleSettings,
-} from '../ambientBubbleField';
+  type MountedSpatialFieldScene,
+} from '../spatialFieldScene';
 import type {
   SpatialInteraction,
   SpatialInteractionInput,
@@ -15,8 +15,6 @@ import type {
 } from '../spatialInteraction';
 import type { ThoughtAuthoring } from '../thoughtAuthoring';
 import { ThoughtLauncher } from './ThoughtLauncher';
-
-const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 
 type ThoughtSpaceProps = {
   interaction: SpatialInteraction;
@@ -48,291 +46,178 @@ export function ThoughtSpace({
     const host = hostRef.current;
     if (!host) return;
 
-    const app = new Application();
     let cancelled = false;
     let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
+    let scene: MountedSpatialFieldScene | null = null;
     let destroyed = false;
     let renderSpace = () => {};
-    const destroyApp = () => {
+    const destroyScene = () => {
       if (destroyed) return;
       destroyed = true;
-      app.destroy(true, { children: true });
+      scene?.destroy();
     };
 
-    void app
-      .init({
-        antialias: true,
-        backgroundAlpha: 0,
-        resizeTo: host,
-        resolution: window.devicePixelRatio,
-        autoDensity: true,
-      })
-      .then(() => {
-        if (cancelled) {
-          destroyApp();
-          return;
-        }
-        canvas = app.canvas;
-        host.appendChild(canvas);
-        canvas.setAttribute('aria-label', 'Interactive space of thought bubbles');
+    void mountSpatialFieldScene(host, interaction, (id, point, singular) => {
+      onInputRef.current({ type: 'thought-pointer-down', id, point, singular });
+    }).then((mountedScene) => {
+      scene = mountedScene;
+      if (cancelled) {
+        destroyScene();
+        return;
+      }
+      canvas = mountedScene.canvas;
+      renderSpace = () => mountedScene.render(ambientBubbleSettingsRef.current);
 
-        const ambientField = new AmbientBubbleField();
-        const layer = new Container();
-        app.stage.addChild(ambientField, layer);
+      const onMove = (event: PointerEvent) => {
+        const rect = mountedScene.canvas.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        const transition = onInputRef.current({
+          type: 'surface-pointer-move',
+          point: { x, y },
+          pointerId: event.pointerId,
+          pointerKind: event.pointerType,
+          inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height,
+        });
+        if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
+        if (transition.render) renderSpace();
+      };
 
-        renderSpace = () => {
-          const currentSnapshot = interaction.read();
-          const current = currentSnapshot.state;
-          const cameraState = currentSnapshot.camera;
-          ambientField.position.set(cameraState.x, cameraState.y);
-          ambientField.scale.set(cameraState.zoom);
-          layer.position.set(cameraState.x, cameraState.y);
-          layer.scale.set(cameraState.zoom);
-          const topLeft = interaction.screenToWorld({ x: 0, y: 0 });
-          const bottomRight = interaction.screenToWorld({
-            x: app.screen.width,
-            y: app.screen.height,
-          });
-          ambientField.update(
-            {
-              left: topLeft.x,
-              right: bottomRight.x,
-              top: topLeft.y,
-              bottom: bottomRight.y,
-            },
-            ambientBubbleSettingsRef.current,
-          );
-          layer.removeChildren().forEach((child) => child.destroy({ children: true }));
+      const onUp = (event: PointerEvent) => {
+        const transition = onInputRef.current({
+          type: 'surface-pointer-up',
+          pointerId: event.pointerId,
+          pointerKind: event.pointerType,
+        });
+        if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
+        if (transition.render) renderSpace();
+      };
 
-          const positions = new Map(
-            current.thoughts.map((thought) => [thought.id, thought]),
-          );
-
-          for (const [a, b] of current.attachments) {
-            const from = positions.get(a);
-            const to = positions.get(b);
-            if (!from || !to) continue;
-            const bond = new Graphics()
-              .moveTo(from.x, from.y)
-              .lineTo(to.x, to.y)
-              .stroke({ color: 0xa6a99e, width: 10, alpha: 0.16 });
-            layer.addChild(bond);
-          }
-
-          for (const thought of current.thoughts) {
-            const position = positions.get(thought.id)!;
-            const isAttachmentCandidate = currentSnapshot.attachmentCandidateIds.includes(
-              thought.id,
-            );
-            const bubble = new Container();
-            bubble.x = position.x;
-            bubble.y = position.y;
-            bubble.eventMode = 'static';
-            bubble.cursor = 'grab';
-            bubble.hitArea = {
-              contains: (x: number, y: number) =>
-                x * x + y * y <= thought.radius * thought.radius,
-            };
-
-            const shadow = new Graphics()
-              .circle(3, 7, thought.radius + 3)
-              .fill({ color: 0x49504a, alpha: 0.07 });
-            const attachmentHalo = isAttachmentCandidate
-              ? new Graphics()
-                  .circle(0, 0, thought.radius + 7)
-                  .fill({ color: 0xf5fff9, alpha: 0.2 })
-                  .stroke({ color: 0x718c7d, alpha: 0.68, width: 4 })
-              : null;
-            const body = new Graphics()
-              .circle(0, 0, thought.radius)
-              .fill({ color: palette[thought.tone % palette.length], alpha: 0.96 })
-              .circle(
-                -thought.radius * 0.22,
-                -thought.radius * 0.24,
-                thought.radius * 0.66,
-              )
-              .fill({ color: 0xffffff, alpha: 0.15 })
-              .circle(0, 0, thought.radius - 1)
-              .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
-
-            const label = new Text({
-              text: thought.text,
-              autoGenerateMipmaps: true,
-              style: new TextStyle({
-                fontFamily: 'Iowan Old Style, Baskerville, Georgia, serif',
-                fontSize: thought.text.length > 48 ? 16 : 17,
-                fill: 0x26312d,
-                align: 'center',
-                lineHeight: 23,
-                wordWrap: true,
-                wordWrapWidth: thought.radius * 1.42,
-              }),
-            });
-            label.anchor.set(0.5);
-            if (attachmentHalo) bubble.addChild(attachmentHalo);
-            bubble.addChild(shadow, body, label);
-
-            bubble.on('pointerdown', (event) => {
-              const point = event.global;
-              onInputRef.current({
-                type: 'thought-pointer-down',
-                id: thought.id,
-                point: { x: point.x, y: point.y },
-                singular: event.shiftKey,
-              });
-              bubble.cursor = 'grabbing';
-            });
-            layer.addChild(bubble);
-          }
-        };
-
-        const onMove = (event: PointerEvent) => {
-          const rect = app.canvas.getBoundingClientRect();
-          const x = event.clientX - rect.left;
-          const y = event.clientY - rect.top;
-          const transition = onInputRef.current({
-            type: 'surface-pointer-move',
-            point: { x, y },
-            pointerId: event.pointerId,
-            pointerKind: event.pointerType,
-            inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height,
-          });
-          if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
-          if (transition.render) renderSpace();
-        };
-
-        const onUp = (event: PointerEvent) => {
-          const transition = onInputRef.current({
-            type: 'surface-pointer-up',
-            pointerId: event.pointerId,
-            pointerKind: event.pointerType,
-          });
-          if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
-          if (transition.render) renderSpace();
-        };
-
-        const onDoubleClick = (event: MouseEvent) => {
-          const rect = app.canvas.getBoundingClientRect();
-          onInputRef.current({
-            type: 'canvas-double-click',
-            point: {
-              x: event.clientX - rect.left,
-              y: event.clientY - rect.top,
-            },
-          });
-          event.preventDefault();
-        };
-
-        const onCanvasClick = (event: MouseEvent) => {
-          const rect = app.canvas.getBoundingClientRect();
-          onInputRef.current({
-            type: 'canvas-click',
-            point: {
-              x: event.clientX - rect.left,
-              y: event.clientY - rect.top,
-            },
-          });
-        };
-
-        const onPointerDown = (event: PointerEvent) => {
-          if (event.button !== 0) return;
-          const rect = app.canvas.getBoundingClientRect();
-          const point = {
+      const onDoubleClick = (event: MouseEvent) => {
+        const rect = mountedScene.canvas.getBoundingClientRect();
+        onInputRef.current({
+          type: 'canvas-double-click',
+          point: {
             x: event.clientX - rect.left,
             y: event.clientY - rect.top,
-          };
-
-          const transition = onInputRef.current({
-            type: 'canvas-pointer-down',
-            point,
-            pointerId: event.pointerId,
-            pointerKind: event.pointerType,
-          });
-          if (transition.cursor) canvas!.style.cursor = transition.cursor;
-          if (event.pointerType === 'touch' && transition.render) {
-            event.preventDefault();
-          }
-          if (transition.render) renderSpace();
-        };
-
-        const onWheel = (event: WheelEvent) => {
-          event.preventDefault();
-          const rect = app.canvas.getBoundingClientRect();
-          const transition = onInputRef.current({
-            type: 'wheel',
-            point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
-            deltaY: event.deltaY,
-            pinching: event.ctrlKey,
-          });
-          if (transition.render) renderSpace();
-        };
-
-        const onKeyDown = (event: KeyboardEvent) => {
-          const target = event.target;
-          if (
-            target instanceof HTMLElement &&
-            target.matches('input, textarea, select, button, [contenteditable="true"]')
-          ) {
-            return;
-          }
-
-          if (
-            event.key !== 'Enter' &&
-            event.key !== '+' &&
-            event.key !== '-' &&
-            event.key !== '0'
-          ) {
-            return;
-          }
-          if (event.key === 'Enter' && event.repeat) return;
-
-          event.preventDefault();
-          const transition = onInputRef.current({
-            type: 'key-down',
-            key: event.key,
-          });
-          if (transition.render) renderSpace();
-        };
-
-        const syncViewport = () => {
-          const transition = onInputRef.current({
-            type: 'viewport-resize',
-            size: { width: app.screen.width, height: app.screen.height },
-          });
-          if (transition.render) renderSpace();
-        };
-
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', onUp);
-        window.addEventListener('pointercancel', onUp);
-        window.addEventListener('keydown', onKeyDown);
-        canvas.addEventListener('click', onCanvasClick);
-        canvas.addEventListener('dblclick', onDoubleClick);
-        canvas.addEventListener('pointerdown', onPointerDown);
-        canvas.addEventListener('wheel', onWheel, { passive: false });
-        app.renderer.on('resize', syncViewport);
-        syncViewport();
-
-        canvas.dataset.cleanup = 'ready';
-        Object.assign(canvas, {
-          cleanupSpace: () => {
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
-            window.removeEventListener('pointercancel', onUp);
-            window.removeEventListener('keydown', onKeyDown);
-            canvas?.removeEventListener('click', onCanvasClick);
-            canvas?.removeEventListener('dblclick', onDoubleClick);
-            canvas?.removeEventListener('pointerdown', onPointerDown);
-            canvas?.removeEventListener('wheel', onWheel);
-            app.renderer.off('resize', syncViewport);
           },
         });
+        event.preventDefault();
+      };
+
+      const onCanvasClick = (event: MouseEvent) => {
+        const rect = mountedScene.canvas.getBoundingClientRect();
+        onInputRef.current({
+          type: 'canvas-click',
+          point: {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+          },
+        });
+      };
+
+      const onPointerDown = (event: PointerEvent) => {
+        if (event.button !== 0) return;
+        const rect = mountedScene.canvas.getBoundingClientRect();
+        const point = {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        };
+
+        const transition = onInputRef.current({
+          type: 'canvas-pointer-down',
+          point,
+          pointerId: event.pointerId,
+          pointerKind: event.pointerType,
+        });
+        if (transition.cursor) canvas!.style.cursor = transition.cursor;
+        if (event.pointerType === 'touch' && transition.render) {
+          event.preventDefault();
+        }
+        if (transition.render) renderSpace();
+      };
+
+      const onWheel = (event: WheelEvent) => {
+        event.preventDefault();
+        const rect = mountedScene.canvas.getBoundingClientRect();
+        const transition = onInputRef.current({
+          type: 'wheel',
+          point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+          deltaY: event.deltaY,
+          pinching: event.ctrlKey,
+        });
+        if (transition.render) renderSpace();
+      };
+
+      const onKeyDown = (event: KeyboardEvent) => {
+        const target = event.target;
+        if (
+          target instanceof HTMLElement &&
+          target.matches('input, textarea, select, button, [contenteditable="true"]')
+        ) {
+          return;
+        }
+
+        if (
+          event.key !== 'Enter' &&
+          event.key !== '+' &&
+          event.key !== '-' &&
+          event.key !== '0'
+        ) {
+          return;
+        }
+        if (event.key === 'Enter' && event.repeat) return;
+
+        event.preventDefault();
+        const transition = onInputRef.current({
+          type: 'key-down',
+          key: event.key,
+        });
+        if (transition.render) renderSpace();
+      };
+
+      const syncViewport = () => {
+        const transition = onInputRef.current({
+          type: 'viewport-resize',
+          size: {
+            width: mountedScene.screen.width,
+            height: mountedScene.screen.height,
+          },
+        });
+        if (transition.render) renderSpace();
+      };
+
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+      window.addEventListener('keydown', onKeyDown);
+      canvas.addEventListener('click', onCanvasClick);
+      canvas.addEventListener('dblclick', onDoubleClick);
+      canvas.addEventListener('pointerdown', onPointerDown);
+      canvas.addEventListener('wheel', onWheel, { passive: false });
+      const stopResize = mountedScene.onResize(syncViewport);
+      syncViewport();
+
+      canvas.dataset.cleanup = 'ready';
+      Object.assign(canvas, {
+        cleanupSpace: () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          window.removeEventListener('pointercancel', onUp);
+          window.removeEventListener('keydown', onKeyDown);
+          canvas?.removeEventListener('click', onCanvasClick);
+          canvas?.removeEventListener('dblclick', onDoubleClick);
+          canvas?.removeEventListener('pointerdown', onPointerDown);
+          canvas?.removeEventListener('wheel', onWheel);
+          stopResize();
+        },
       });
+    });
 
     return () => {
       cancelled = true;
       canvas?.cleanupSpace?.();
-      if (canvas) destroyApp();
+      if (scene) destroyScene();
     };
   }, [interaction]);
 

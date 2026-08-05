@@ -1,5 +1,7 @@
-import { defaultAmbientBubbleSettings } from '../ambientBubbleField';
-import type { AmbientBubbleSettings } from '../ambientBubbleField';
+import {
+  defaultAmbientBubbleSettings,
+  type AmbientBubbleSettings,
+} from '../spatialFieldScene';
 
 export const ambientBubblePresets = {
   whisper: { size: 0.6, presence: 0.3, density: 1 },
