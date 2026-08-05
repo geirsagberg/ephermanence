@@ -13,7 +13,10 @@ import {
   type AmbientBubbleSettings,
   type MountedSpatialFieldScene,
 } from '../spatialFieldScene';
-import { createPointerActivationGuard } from '../pointerActivation';
+import {
+  createControlClickSuppressor,
+  createPointerActivationGuard,
+} from '../pointerActivation';
 import { createSingleThoughtLongPress } from '../singleThoughtLongPress';
 import type {
   SpatialInteraction,
@@ -65,6 +68,7 @@ export function ThoughtSpace({
   const renderSpaceRef = useRef(() => {});
   const renderedSceneInputsRef = useRef<RenderedSceneInputs | null>(null);
   const actionActivationRef = useRef(createPointerActivationGuard());
+  const controlClickSuppressorRef = useRef(createControlClickSuppressor());
   const singleThoughtLongPressRef = useRef(
     createSingleThoughtLongPress(({ id, point }) => {
       onInputRef.current({ type: 'thought-pointer-down', id, point, singular: true });
@@ -168,6 +172,7 @@ export function ThoughtSpace({
       };
 
       const onCanvasClick = (event: MouseEvent) => {
+        if (controlClickSuppressorRef.current.consume(event.timeStamp)) return;
         const rect = mountedScene.canvas.getBoundingClientRect();
         onInputRef.current({
           type: 'canvas-click',
@@ -329,6 +334,9 @@ export function ThoughtSpace({
   ) => {
     event.preventDefault();
     event.stopPropagation();
+    if (event.pointerType !== 'mouse') {
+      controlClickSuppressorRef.current.arm(event.timeStamp);
+    }
     if (
       actionActivationRef.current.complete(event.pointerId, {
         x: event.clientX,
@@ -340,12 +348,16 @@ export function ThoughtSpace({
   };
   const cancelAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
     actionActivationRef.current.cancel(event.pointerId);
+    controlClickSuppressorRef.current.cancel();
   };
   const activateFromKeyboard = (
     event: ReactMouseEvent<HTMLButtonElement>,
     action: () => void,
   ) => {
-    if (event.detail !== 0) return;
+    if (event.detail !== 0) {
+      controlClickSuppressorRef.current.cancel();
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
     action();
@@ -409,6 +421,7 @@ export function ThoughtSpace({
               onPointerDown={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                event.currentTarget.setPointerCapture(event.pointerId);
                 const canvas = hostRef.current?.querySelector('canvas');
                 if (!canvas) return;
                 const rect = canvas.getBoundingClientRect();
@@ -423,6 +436,12 @@ export function ThoughtSpace({
                   detachOnTap: true,
                 });
               }}
+              onPointerUp={(event) => {
+                if (event.pointerType !== 'mouse') {
+                  controlClickSuppressorRef.current.arm(event.timeStamp);
+                }
+              }}
+              onPointerCancel={() => controlClickSuppressorRef.current.cancel()}
               aria-label={`Move thought independently: ${selectedThought.text}`}
             >
               <Grip size={20} strokeWidth={1} aria-hidden="true" />
@@ -475,7 +494,7 @@ const actionButtonClass = css({
   _hover: {
     color: '#28312d',
   },
-  _focus: {
+  _active: {
     background: '#f1efe8',
   },
 });

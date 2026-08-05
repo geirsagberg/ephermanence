@@ -194,6 +194,48 @@ describe('spatial field scene', () => {
     expect(cachePadding.bounds.maxY).toBeGreaterThanOrEqual(thought.radius + 34);
   });
 
+  it('raises a Thought as its final Bond is removed', () => {
+    const filters: Array<{
+      padding: number;
+      offsetX: number;
+      offsetY: number;
+      alpha: number;
+      blur: number;
+    }> = [];
+    const scene = new SpatialFieldScene(undefined, () => {
+      const filter = { padding: 46, offsetX: 0, offsetY: 0, alpha: 0, blur: 0 };
+      filters.push(filter);
+      return filter as never;
+    });
+    const first = {
+      id: 'first',
+      text: 'First',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    const second = { ...first, id: 'second', text: 'Second', x: 100 };
+    scene.render(
+      snapshot({ thoughts: [first, second], attachments: [['first', 'second']] }),
+      viewport,
+    );
+    const cachedVisual = thoughts(scene).children[0].children[1] as Container;
+    expect(cachedVisual.y).toBe(0);
+    expect(filters[0]).toMatchObject({ offsetY: 5, alpha: 0.1, blur: 8 });
+
+    scene.render(snapshot({ thoughts: [first, second], attachments: [] }), viewport);
+    scene.advanceAnimations(110);
+
+    expect(cachedVisual.y).toBeCloseTo(-1);
+    expect(filters[0]).toMatchObject({ offsetY: 7.5, alpha: 0.14, blur: 9.5 });
+
+    scene.advanceAnimations(110);
+
+    expect(cachedVisual.y).toBe(-2);
+    expect(filters[0]).toMatchObject({ offsetY: 10, alpha: 0.18, blur: 11 });
+  });
+
   it('reuses a Bond display object while its endpoint moves', () => {
     const scene = new SpatialFieldScene();
     const first = {
@@ -263,9 +305,9 @@ describe('spatial field scene', () => {
     scene.render(snapshot({ thoughts: [first, second], attachments: [] }), viewport);
 
     expect(fadingBonds(scene).children).toHaveLength(1);
-    scene.advanceBondFades(120);
+    scene.advanceAnimations(120);
     expect(fadingBonds(scene).children[0].alpha).toBeCloseTo(0.5);
-    scene.advanceBondFades(120);
+    scene.advanceAnimations(120);
     expect(fadingBonds(scene).children).toHaveLength(0);
   });
 

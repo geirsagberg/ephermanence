@@ -42,17 +42,24 @@ type ThoughtPointerDown = (
   pointerId: number,
 ) => void;
 type BondGeometry = { from: Point; to: Point };
-type ThoughtShadowFilterFactory = () => DropShadowFilter;
+type ThoughtShadowFilterFactory = (elevation: number) => DropShadowFilter;
 type ActiveBond = { graphic: Graphics; geometry: BondGeometry };
 type ThoughtBubbleRecord = {
   bubble: Container;
   attachmentHalo: Graphics;
+  cachedVisual: Container;
+  shadowFilter?: DropShadowFilter;
+  elevation: number;
+  targetElevation: number;
   text: string;
   radius: number;
   tone: number;
 };
 
 const bondFadeDuration = 240;
+const thoughtElevationDuration = 220;
+const thoughtRise = 2;
+const maxThoughtShadowPadding = 46;
 
 export class SpatialFieldScene extends Container {
   private readonly ambient = new AmbientBubbleField();
@@ -96,6 +103,7 @@ export class SpatialFieldScene extends Container {
     this.thoughts.removeChildren();
 
     const positions = new Map(state.thoughts.map((thought) => [thought.id, thought]));
+    const bondedThoughtIds = new Set(state.attachments.flat());
     const nextBondKeys = new Set<string>();
     for (const [a, b] of state.attachments) {
       const from = positions.get(a);
@@ -136,6 +144,7 @@ export class SpatialFieldScene extends Container {
       if (thought.id === hiddenThoughtId) continue;
       nextThoughtIds.add(thought.id);
       const attachmentCandidate = attachmentCandidateIds.includes(thought.id);
+      const targetElevation = bondedThoughtIds.has(thought.id) ? 0 : 1;
       let record = this.thoughtBubbles.get(thought.id);
       if (!record || !sameThoughtVisual(record, thought)) {
         record?.bubble.destroy({ children: true });
@@ -143,15 +152,19 @@ export class SpatialFieldScene extends Container {
           thought,
           this.onThoughtPointerDown,
           this.createThoughtShadowFilter,
+          targetElevation,
         );
         record = {
           ...created,
+          elevation: targetElevation,
+          targetElevation,
           text: thought.text,
           radius: thought.radius,
           tone: thought.tone,
         };
         this.thoughtBubbles.set(thought.id, record);
       }
+      record.targetElevation = targetElevation;
       record.bubble.position.set(thought.x, thought.y);
       record.bubble.cursor = 'grab';
       record.attachmentHalo.visible = attachmentCandidate;
@@ -165,7 +178,7 @@ export class SpatialFieldScene extends Container {
     }
   }
 
-  advanceBondFades(deltaMs: number) {
+  advanceAnimations(deltaMs: number) {
     for (const [key, fading] of this.fadingBonds) {
       fading.elapsed += deltaMs;
       const progress = Math.min(1, fading.elapsed / bondFadeDuration);
@@ -174,6 +187,29 @@ export class SpatialFieldScene extends Container {
       fading.graphic.removeFromParent();
       fading.graphic.destroy();
       this.fadingBonds.delete(key);
+    }
+
+    const elevationStep = deltaMs / thoughtElevationDuration;
+    for (const record of this.thoughtBubbles.values()) {
+      if (record.elevation === record.targetElevation) continue;
+      const direction = Math.sign(record.targetElevation - record.elevation);
+      record.elevation = Math.max(
+        0,
+        Math.min(
+          1,
+          record.elevation +
+            direction *
+              Math.min(
+                elevationStep,
+                Math.abs(record.targetElevation - record.elevation),
+              ),
+        ),
+      );
+      record.cachedVisual.y = -thoughtRise * record.elevation;
+      if (record.shadowFilter) {
+        applyThoughtElevation(record.shadowFilter, record.elevation);
+        record.cachedVisual.updateCacheTexture();
+      }
     }
   }
 
@@ -253,10 +289,10 @@ export async function mountSpatialFieldScene(
     autoDensity: true,
   });
   const scene = new SpatialFieldScene(onThoughtPointerDown, createThoughtShadowFilter);
-  const advanceBondFades = (ticker: Ticker) => {
-    scene.advanceBondFades(ticker.deltaMS);
+  const advanceAnimations = (ticker: Ticker) => {
+    scene.advanceAnimations(ticker.deltaMS);
   };
-  app.ticker.add(advanceBondFades);
+  app.ticker.add(advanceAnimations);
   app.stage.addChild(scene);
   host.appendChild(app.canvas);
   app.canvas.setAttribute('aria-label', 'Interactive space of thought bubbles');
@@ -289,7 +325,7 @@ export async function mountSpatialFieldScene(
       return () => app.renderer.off('resize', listener);
     },
     destroy() {
-      app.ticker.remove(advanceBondFades);
+      app.ticker.remove(advanceAnimations);
       app.destroy(true, { children: true });
     },
   };
@@ -299,6 +335,7 @@ function createThoughtBubble(
   thought: SpatialInteractionSnapshot['state']['thoughts'][number],
   onPointerDown: ThoughtPointerDown,
   createShadowFilter?: ThoughtShadowFilterFactory,
+  elevation = 0,
 ) {
   const bubble = new Container();
   bubble.x = thought.x;
@@ -320,8 +357,11 @@ function createThoughtBubble(
     .fill({ color: 0xffffff, alpha: 0.15 })
     .circle(0, 0, thought.radius - 1)
     .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
-  const shadowFilter = createShadowFilter?.();
-  if (shadowFilter) body.filters = [shadowFilter];
+  const shadowFilter = createShadowFilter?.(elevation);
+  if (shadowFilter) {
+    applyThoughtElevation(shadowFilter, elevation);
+    body.filters = [shadowFilter];
+  }
 
   const label = new Text({
     text: thought.text,
@@ -338,8 +378,9 @@ function createThoughtBubble(
   });
   label.anchor.set(0.5);
   const cachedVisual = new Container();
+  cachedVisual.y = -thoughtRise * elevation;
   if (shadowFilter) {
-    const extent = thought.radius + shadowFilter.padding;
+    const extent = thought.radius + maxThoughtShadowPadding;
     const cachePadding = new Graphics()
       .rect(-extent, -extent, extent * 2, extent * 2)
       .fill({ color: 0, alpha: 0 });
@@ -357,17 +398,26 @@ function createThoughtBubble(
     );
     bubble.cursor = 'grabbing';
   });
-  return { bubble, attachmentHalo };
+  return { bubble, attachmentHalo, cachedVisual, shadowFilter };
 }
 
-function createThoughtShadowFilter() {
-  return new DropShadowFilter({
+function createThoughtShadowFilter(elevation: number) {
+  const filter = new DropShadowFilter({
     offset: { x: 2, y: 6 },
     color: 0x49504a,
-    alpha: 0.12,
+    alpha: 0.1,
     blur: 8,
     quality: 3,
   });
+  applyThoughtElevation(filter, elevation);
+  return filter;
+}
+
+function applyThoughtElevation(filter: DropShadowFilter, elevation: number) {
+  filter.offsetX = 2;
+  filter.offsetY = 5 + elevation * 5;
+  filter.alpha = 0.1 + elevation * 0.08;
+  filter.blur = 8 + elevation * 3;
 }
 
 const chunkSize = 560;

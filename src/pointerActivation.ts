@@ -21,3 +21,21 @@ export function createPointerActivationGuard(maxMovement = 7) {
     },
   };
 }
+
+export function createControlClickSuppressor(windowMs = 750) {
+  let armedAt: number | null = null;
+
+  return {
+    arm(timeStamp: number) {
+      armedAt = timeStamp;
+    },
+    cancel() {
+      armedAt = null;
+    },
+    consume(timeStamp: number) {
+      const start = armedAt;
+      armedAt = null;
+      return start !== null && timeStamp >= start && timeStamp - start <= windowMs;
+    },
+  };
+}
