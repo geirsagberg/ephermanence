@@ -1,5 +1,10 @@
 import { Grip, Pencil, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import type {
+  CSSProperties,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 
 import {
   defaultAmbientBubbleSettings,
@@ -7,6 +12,8 @@ import {
   type AmbientBubbleSettings,
   type MountedSpatialFieldScene,
 } from '../spatialFieldScene';
+import { createPointerActivationGuard } from '../pointerActivation';
+import { createSingleThoughtLongPress } from '../singleThoughtLongPress';
 import type {
   SpatialInteraction,
   SpatialInteractionInput,
@@ -44,6 +51,12 @@ export function ThoughtSpace({
   const onInputRef = useRef(onInput);
   const ambientBubbleSettingsRef = useRef(ambientBubbleSettings);
   const editingThoughtIdRef = useRef(editingThoughtId);
+  const actionActivationRef = useRef(createPointerActivationGuard());
+  const singleThoughtLongPressRef = useRef(
+    createSingleThoughtLongPress(({ id, point }) => {
+      onInputRef.current({ type: 'thought-pointer-down', id, point, singular: true });
+    }),
+  );
 
   onInputRef.current = onInput;
   ambientBubbleSettingsRef.current = ambientBubbleSettings;
@@ -75,8 +88,13 @@ export function ThoughtSpace({
       scene?.destroy();
     };
 
-    void mountSpatialFieldScene(host, interaction, (id, point, singular) => {
+    void mountSpatialFieldScene(host, interaction, (id, point, singular, pointerId) => {
       onInputRef.current({ type: 'thought-pointer-down', id, point, singular });
+      if (singular) {
+        singleThoughtLongPressRef.current.cancel();
+      } else {
+        singleThoughtLongPressRef.current.begin({ id, point, pointerId });
+      }
     }).then((mountedScene) => {
       scene = mountedScene;
       if (cancelled) {
@@ -94,6 +112,7 @@ export function ThoughtSpace({
         const rect = mountedScene.canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
+        singleThoughtLongPressRef.current.move(event.pointerId, { x, y });
         const transition = onInputRef.current({
           type: 'surface-pointer-move',
           point: { x, y },
@@ -106,6 +125,7 @@ export function ThoughtSpace({
       };
 
       const onUp = (event: PointerEvent) => {
+        singleThoughtLongPressRef.current.end(event.pointerId);
         const transition = onInputRef.current({
           type: 'surface-pointer-up',
           pointerId: event.pointerId,
@@ -140,6 +160,7 @@ export function ThoughtSpace({
 
       const onPointerDown = (event: PointerEvent) => {
         if (event.button !== 0) return;
+        singleThoughtLongPressRef.current.cancelForOtherPointer(event.pointerId);
         const rect = mountedScene.canvas.getBoundingClientRect();
         const point = {
           x: event.clientX - rect.left,
@@ -232,6 +253,7 @@ export function ThoughtSpace({
           canvas?.removeEventListener('dblclick', onDoubleClick);
           canvas?.removeEventListener('pointerdown', onPointerDown);
           canvas?.removeEventListener('wheel', onWheel);
+          singleThoughtLongPressRef.current.cancel();
           stopResize();
         },
       });
@@ -265,24 +287,67 @@ export function ThoughtSpace({
     selectedThought && selectedPosition
       ? positionThoughtActions(selectedPosition, selectedThought.radius * zoom)
       : null;
+  const armAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    actionActivationRef.current.begin(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    });
+  };
+  const completeAction = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    action: () => void,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (
+      actionActivationRef.current.complete(event.pointerId, {
+        x: event.clientX,
+        y: event.clientY,
+      })
+    ) {
+      action();
+    }
+  };
+  const cancelAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    actionActivationRef.current.cancel(event.pointerId);
+  };
+  const activateFromKeyboard = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    action: () => void,
+  ) => {
+    if (event.detail !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    action();
+  };
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
       {selectedThought && selectedPosition && actionPositions && (
-        <>
+        <Fragment key={selectedThought.id}>
           <button
             title="Edit thought"
             className="bubble-edit"
-            style={{
-              left: actionPositions.edit.x,
-              top: actionPositions.edit.y,
-              width: THOUGHT_ACTION_SIZE,
-              height: THOUGHT_ACTION_SIZE,
+            style={actionStyle(selectedPosition, actionPositions.edit)}
+            onPointerDown={armAction}
+            onPointerUp={(event) => {
+              completeAction(event, () => {
+                onInputRef.current({
+                  type: 'canvas-double-click',
+                  point: selectedPosition,
+                });
+              });
             }}
-            onClick={() => {
-              onInputRef.current({
-                type: 'canvas-double-click',
-                point: selectedPosition,
+            onPointerCancel={cancelAction}
+            onClick={(event) => {
+              activateFromKeyboard(event, () => {
+                onInputRef.current({
+                  type: 'canvas-double-click',
+                  point: selectedPosition,
+                });
               });
             }}
             aria-label={`Edit thought: ${selectedThought.text}`}
@@ -292,14 +357,18 @@ export function ThoughtSpace({
           <button
             title="Delete thought"
             className="bubble-delete"
-            style={{
-              left: actionPositions.delete.x,
-              top: actionPositions.delete.y,
-              width: THOUGHT_ACTION_SIZE,
-              height: THOUGHT_ACTION_SIZE,
+            style={actionStyle(selectedPosition, actionPositions.delete)}
+            onPointerDown={armAction}
+            onPointerUp={(event) => {
+              completeAction(event, () => {
+                onInputRef.current({ type: 'delete-selection' });
+              });
             }}
-            onClick={() => {
-              onInputRef.current({ type: 'delete-selection' });
+            onPointerCancel={cancelAction}
+            onClick={(event) => {
+              activateFromKeyboard(event, () => {
+                onInputRef.current({ type: 'delete-selection' });
+              });
             }}
             aria-label={`Delete thought: ${selectedThought.text}`}
           >
@@ -308,12 +377,7 @@ export function ThoughtSpace({
           <button
             title="Move thought independently"
             className="bubble-grab"
-            style={{
-              left: actionPositions.grab.x,
-              top: actionPositions.grab.y,
-              width: THOUGHT_ACTION_SIZE,
-              height: THOUGHT_ACTION_SIZE,
-            }}
+            style={actionStyle(selectedPosition, actionPositions.grab)}
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -334,7 +398,7 @@ export function ThoughtSpace({
           >
             <Grip size={20} strokeWidth={1} aria-hidden="true" />
           </button>
-        </>
+        </Fragment>
       )}
       <ThoughtLauncher
         composerOpen={composerOpen}
@@ -347,4 +411,21 @@ export function ThoughtSpace({
       />
     </div>
   );
+}
+
+type ActionStyle = CSSProperties &
+  Record<'--action-origin-x' | '--action-origin-y', string>;
+
+function actionStyle(
+  center: { x: number; y: number },
+  position: { x: number; y: number },
+): ActionStyle {
+  return {
+    left: position.x,
+    top: position.y,
+    width: THOUGHT_ACTION_SIZE,
+    height: THOUGHT_ACTION_SIZE,
+    '--action-origin-x': `${center.x - position.x}px`,
+    '--action-origin-y': `${center.y - position.y}px`,
+  };
 }

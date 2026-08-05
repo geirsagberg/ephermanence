@@ -5,6 +5,7 @@ import {
   Text,
   TextStyle,
   type FederatedPointerEvent,
+  type Ticker,
 } from 'pixi.js';
 
 import type {
@@ -33,15 +34,29 @@ export const defaultAmbientBubbleSettings: AmbientBubbleSettings = {
   density: 3,
 };
 
-type ThoughtPointerDown = (id: string, point: Point, singular: boolean) => void;
+type ThoughtPointerDown = (
+  id: string,
+  point: Point,
+  singular: boolean,
+  pointerId: number,
+) => void;
+type BondGeometry = { from: Point; to: Point };
+
+const bondFadeDuration = 240;
 
 export class SpatialFieldScene extends Container {
   private readonly ambient = new AmbientBubbleField();
+  private readonly bondFades = new Container();
   private readonly foreground = new Container();
+  private readonly previousBonds = new Map<string, BondGeometry>();
+  private readonly fadingBonds = new Map<
+    string,
+    { graphic: Graphics; elapsed: number }
+  >();
 
   constructor(private readonly onThoughtPointerDown: ThoughtPointerDown = () => {}) {
     super();
-    this.addChild(this.ambient, this.foreground);
+    this.addChild(this.ambient, this.bondFades, this.foreground);
   }
 
   render(
@@ -53,6 +68,8 @@ export class SpatialFieldScene extends Container {
     const { camera, state, attachmentCandidateIds } = snapshot;
     this.ambient.position.set(camera.x, camera.y);
     this.ambient.scale.set(camera.zoom);
+    this.bondFades.position.set(camera.x, camera.y);
+    this.bondFades.scale.set(camera.zoom);
     this.foreground.position.set(camera.x, camera.y);
     this.foreground.scale.set(camera.zoom);
     this.ambient.update(bounds, settings);
@@ -61,15 +78,36 @@ export class SpatialFieldScene extends Container {
       .forEach((child) => child.destroy({ children: true }));
 
     const positions = new Map(state.thoughts.map((thought) => [thought.id, thought]));
+    const nextBonds = new Map<string, BondGeometry>();
     for (const [a, b] of state.attachments) {
       const from = positions.get(a);
       const to = positions.get(b);
       if (!from || !to) continue;
-      const bond = new Graphics()
-        .moveTo(from.x, from.y)
-        .lineTo(to.x, to.y)
-        .stroke({ color: 0xa6a99e, width: 10, alpha: 0.16 });
-      this.foreground.addChild(bond);
+      const key = bondKey(a, b);
+      const fading = this.fadingBonds.get(key);
+      if (fading) {
+        fading.graphic.removeFromParent();
+        fading.graphic.destroy();
+        this.fadingBonds.delete(key);
+      }
+      nextBonds.set(key, {
+        from: { x: from.x, y: from.y },
+        to: { x: to.x, y: to.y },
+      });
+      this.foreground.addChild(
+        createBond({ from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y } }),
+      );
+    }
+
+    for (const [key, geometry] of this.previousBonds) {
+      if (nextBonds.has(key) || this.fadingBonds.has(key)) continue;
+      const graphic = createBond(geometry);
+      this.bondFades.addChild(graphic);
+      this.fadingBonds.set(key, { graphic, elapsed: 0 });
+    }
+    this.previousBonds.clear();
+    for (const [key, geometry] of nextBonds) {
+      this.previousBonds.set(key, geometry);
     }
 
     for (const thought of state.thoughts) {
@@ -83,6 +121,29 @@ export class SpatialFieldScene extends Container {
       );
     }
   }
+
+  advanceBondFades(deltaMs: number) {
+    for (const [key, fading] of this.fadingBonds) {
+      fading.elapsed += deltaMs;
+      const progress = Math.min(1, fading.elapsed / bondFadeDuration);
+      fading.graphic.alpha = 1 - progress;
+      if (progress < 1) continue;
+      fading.graphic.removeFromParent();
+      fading.graphic.destroy();
+      this.fadingBonds.delete(key);
+    }
+  }
+}
+
+function bondKey(a: string, b: string) {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+function createBond({ from, to }: BondGeometry) {
+  return new Graphics()
+    .moveTo(from.x, from.y)
+    .lineTo(to.x, to.y)
+    .stroke({ color: 0xa6a99e, width: 10, alpha: 0.16 });
 }
 
 export type MountedSpatialFieldScene = {
@@ -107,6 +168,11 @@ export async function mountSpatialFieldScene(
     autoDensity: true,
   });
   const scene = new SpatialFieldScene(onThoughtPointerDown);
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const advanceBondFades = (ticker: Ticker) => {
+    scene.advanceBondFades(reducedMotion ? Number.POSITIVE_INFINITY : ticker.deltaMS);
+  };
+  app.ticker.add(advanceBondFades);
   app.stage.addChild(scene);
   host.appendChild(app.canvas);
   app.canvas.setAttribute('aria-label', 'Interactive space of thought bubbles');
@@ -139,6 +205,7 @@ export async function mountSpatialFieldScene(
       return () => app.renderer.off('resize', listener);
     },
     destroy() {
+      app.ticker.remove(advanceBondFades);
       app.destroy(true, { children: true });
     },
   };
@@ -192,7 +259,12 @@ function createThoughtBubble(
   if (attachmentHalo) bubble.addChild(attachmentHalo);
   bubble.addChild(shadow, body, label);
   bubble.on('pointerdown', (event: FederatedPointerEvent) => {
-    onPointerDown(thought.id, { x: event.global.x, y: event.global.y }, event.shiftKey);
+    onPointerDown(
+      thought.id,
+      { x: event.global.x, y: event.global.y },
+      event.shiftKey,
+      event.pointerId,
+    );
     bubble.cursor = 'grabbing';
   });
   return bubble;

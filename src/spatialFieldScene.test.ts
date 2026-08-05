@@ -1,4 +1,4 @@
-import { Container } from 'pixi.js';
+import { Container, Point, type FederatedPointerEvent } from 'pixi.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { defaultAmbientBubbleSettings, SpatialFieldScene } from './spatialFieldScene';
@@ -25,6 +25,10 @@ function ambient(scene: SpatialFieldScene) {
 }
 
 function foreground(scene: SpatialFieldScene) {
+  return scene.children[2] as Container;
+}
+
+function fadingBonds(scene: SpatialFieldScene) {
   return scene.children[1] as Container;
 }
 
@@ -60,6 +64,28 @@ describe('spatial field scene', () => {
     expect(foreground(scene).children[2].eventMode).toBe('static');
   });
 
+  it('forwards the pointer identity needed to recognize a long press', () => {
+    const onPointerDown = vi.fn();
+    const scene = new SpatialFieldScene(onPointerDown);
+    const held = {
+      id: 'held',
+      text: 'Held',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    scene.render(snapshot({ thoughts: [held], attachments: [] }), viewport);
+
+    foreground(scene).children[0].emit('pointerdown', {
+      global: new Point(12, 34),
+      pointerId: 7,
+      shiftKey: false,
+    } as FederatedPointerEvent);
+
+    expect(onPointerDown).toHaveBeenCalledWith('held', { x: 12, y: 34 }, false, 7);
+  });
+
   it('hides the edited Thought while preserving its Bonds', () => {
     const scene = new SpatialFieldScene();
     const first = {
@@ -82,6 +108,33 @@ describe('spatial field scene', () => {
     expect(foreground(scene).children).toHaveLength(2);
     expect(foreground(scene).children[1].x).toBe(100);
     expect(foreground(scene).children[1].eventMode).toBe('static');
+  });
+
+  it('fades a removed Bond after release', () => {
+    const scene = new SpatialFieldScene();
+    const first = {
+      id: 'first',
+      text: 'First',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    const second = { ...first, id: 'second', x: 200 };
+
+    scene.render(
+      snapshot({ thoughts: [first, second], attachments: [['first', 'second']] }),
+      viewport,
+    );
+    expect(fadingBonds(scene).children).toHaveLength(0);
+
+    scene.render(snapshot({ thoughts: [first, second], attachments: [] }), viewport);
+
+    expect(fadingBonds(scene).children).toHaveLength(1);
+    scene.advanceBondFades(120);
+    expect(fadingBonds(scene).children[0].alpha).toBeCloseTo(0.5);
+    scene.advanceBondFades(120);
+    expect(fadingBonds(scene).children).toHaveLength(0);
   });
 
   it('reuses cached ambient chunks while the visible world is unchanged', () => {
