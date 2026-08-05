@@ -420,6 +420,7 @@ export function ThoughtSpace({
                     y: event.clientY - rect.top,
                   },
                   singular: true,
+                  detachOnTap: true,
                 });
               }}
               aria-label={`Move thought independently: ${selectedThought.text}`}

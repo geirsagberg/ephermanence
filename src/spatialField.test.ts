@@ -105,6 +105,30 @@ describe('spatial field transitions', () => {
     expect(snapshot.attachmentCandidateIds).toEqual([]);
   });
 
+  it('immediately detaches a selected thought when its grab control is tapped', () => {
+    const spatialField = field(
+      [thought('selected', 100), thought('joined', 200), thought('other', 300)],
+      [
+        ['selected', 'joined'],
+        ['joined', 'other'],
+      ],
+    );
+    startDrag(spatialField, 'selected');
+    spatialField.dispatch({ type: 'pointer-up' });
+
+    spatialField.dispatch({
+      type: 'thought-pointer-down',
+      id: 'selected',
+      point: { x: 0, y: 0 },
+      singular: true,
+      detachOnTap: true,
+    });
+    const snapshot = spatialField.dispatch({ type: 'pointer-up' });
+
+    expect(snapshot.selectedId).toBe('selected');
+    expect(snapshot.state.attachments).toEqual([['joined', 'other']]);
+  });
+
   it('exposes only potential new attachment targets while dragging', () => {
     const spatialField = field([thought('moving', 100), thought('target', 250)]);
 

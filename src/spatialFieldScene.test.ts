@@ -29,11 +29,15 @@ function foreground(scene: SpatialFieldScene) {
 }
 
 function bonds(scene: SpatialFieldScene) {
-  return foreground(scene).children[0] as Container;
+  return foreground(scene).children[1] as Container;
 }
 
 function thoughts(scene: SpatialFieldScene) {
-  return foreground(scene).children[1] as Container;
+  return foreground(scene).children[2] as Container;
+}
+
+function clusterOutline(scene: SpatialFieldScene) {
+  return foreground(scene).children[0] as Graphics;
 }
 
 function fadingBonds(scene: SpatialFieldScene) {
@@ -71,6 +75,35 @@ describe('spatial field scene', () => {
     expect(thoughts(scene).children).toHaveLength(2);
     expect(thoughts(scene).children[0].eventMode).toBe('static');
     expect(thoughts(scene).children[1].eventMode).toBe('static');
+  });
+
+  it('outlines only the selected Thought cluster behind its bubbles', () => {
+    const scene = new SpatialFieldScene();
+    const first = {
+      id: 'first',
+      text: 'First',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    const second = { ...first, id: 'second', text: 'Second', x: 100 };
+    const alone = { ...first, id: 'alone', text: 'Alone', x: 500 };
+    const state = {
+      thoughts: [first, second, alone],
+      attachments: [['first', 'second']] as [string, string][],
+    };
+
+    scene.render({ ...snapshot(state), selectedId: 'first' }, viewport);
+
+    const outline = clusterOutline(scene);
+    expect(foreground(scene).children).toEqual([outline, bonds(scene), thoughts(scene)]);
+    expect(outline.bounds.minX).toBe(-82);
+    expect(outline.bounds.maxX).toBe(182);
+
+    scene.render({ ...snapshot(state), selectedId: 'alone' }, viewport);
+
+    expect(clusterOutline(scene).context.instructions).toHaveLength(0);
   });
 
   it('forwards the pointer identity needed to recognize a long press', () => {

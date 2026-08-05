@@ -3,7 +3,13 @@ import type { Attachment, SpaceState, Thought } from './types';
 export type Point = { x: number; y: number };
 
 export type SpatialFieldInput =
-  | { type: 'thought-pointer-down'; id: string; point: Point; singular: boolean }
+  | {
+      type: 'thought-pointer-down';
+      id: string;
+      point: Point;
+      singular: boolean;
+      detachOnTap?: boolean;
+    }
   | { type: 'pointer-move'; point: Point; zoom: number }
   | { type: 'pointer-up' }
   | { type: 'clear-selection' }
@@ -25,6 +31,7 @@ type Drag = {
   lastPoint: Point;
   movingIds: Set<string>;
   singular: boolean;
+  detachOnTap: boolean;
 };
 
 export type SpatialField = {
@@ -61,6 +68,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
               ? new Set([input.id])
               : connectedThoughtIds(input.id, state.attachments),
             singular: input.singular,
+            detachOnTap: input.detachOnTap ?? false,
           };
           break;
         }
@@ -102,11 +110,21 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
         case 'pointer-up': {
           if (!drag) break;
           if (drag.distance < 4) {
-            state = {
-              ...state,
-              thoughts: bringThoughtToFront(state.thoughts, drag.activeId),
-            };
-            selectedId = drag.activeId;
+            if (drag.detachOnTap) {
+              const activeId = drag.activeId;
+              state = {
+                ...state,
+                attachments: state.attachments.filter(
+                  ([a, b]) => a !== activeId && b !== activeId,
+                ),
+              };
+            } else {
+              state = {
+                ...state,
+                thoughts: bringThoughtToFront(state.thoughts, drag.activeId),
+              };
+              selectedId = drag.activeId;
+            }
           } else {
             state = {
               ...state,
@@ -214,7 +232,7 @@ function thoughtRadius(text: string) {
   return Math.max(min, Math.min(max, radius));
 }
 
-function connectedThoughtIds(id: string, attachments: Attachment[]) {
+export function connectedThoughtIds(id: string, attachments: Attachment[]) {
   const result = new Set([id]);
   let changed = true;
   while (changed) {

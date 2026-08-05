@@ -13,7 +13,7 @@ import type {
   SpatialInteraction,
   SpatialInteractionSnapshot,
 } from './spatialInteraction';
-import type { Point } from './spatialField';
+import { connectedThoughtIds, type Point } from './spatialField';
 import { getThoughtTone } from './thoughtTone';
 
 export type WorldBounds = {
@@ -58,6 +58,7 @@ export class SpatialFieldScene extends Container {
   private readonly ambient = new AmbientBubbleField();
   private readonly bondFades = new Container();
   private readonly foreground = new Container();
+  private readonly clusterOutline = new Graphics();
   private readonly bonds = new Container();
   private readonly thoughts = new Container();
   private readonly activeBonds = new Map<string, ActiveBond>();
@@ -72,7 +73,7 @@ export class SpatialFieldScene extends Container {
     private readonly createThoughtShadowFilter?: ThoughtShadowFilterFactory,
   ) {
     super();
-    this.foreground.addChild(this.bonds, this.thoughts);
+    this.foreground.addChild(this.clusterOutline, this.bonds, this.thoughts);
     this.addChild(this.ambient, this.bondFades, this.foreground);
   }
 
@@ -82,7 +83,7 @@ export class SpatialFieldScene extends Container {
     settings: AmbientBubbleSettings = defaultAmbientBubbleSettings,
     hiddenThoughtId?: string,
   ) {
-    const { camera, state, attachmentCandidateIds } = snapshot;
+    const { camera, state, selectedId, attachmentCandidateIds } = snapshot;
     this.ambient.position.set(camera.x, camera.y);
     this.ambient.scale.set(camera.zoom);
     this.bondFades.position.set(camera.x, camera.y);
@@ -90,6 +91,7 @@ export class SpatialFieldScene extends Container {
     this.foreground.position.set(camera.x, camera.y);
     this.foreground.scale.set(camera.zoom);
     this.ambient.update(bounds, settings);
+    this.drawClusterOutline(state, selectedId);
     this.bonds.removeChildren();
     this.thoughts.removeChildren();
 
@@ -172,6 +174,23 @@ export class SpatialFieldScene extends Container {
       fading.graphic.removeFromParent();
       fading.graphic.destroy();
       this.fadingBonds.delete(key);
+    }
+  }
+
+  private drawClusterOutline(
+    state: SpatialInteractionSnapshot['state'],
+    selectedId: string | null,
+  ) {
+    this.clusterOutline.clear();
+    if (!selectedId) return;
+    const clusterIds = connectedThoughtIds(selectedId, state.attachments);
+    if (clusterIds.size < 2) return;
+
+    for (const thought of state.thoughts) {
+      if (!clusterIds.has(thought.id)) continue;
+      this.clusterOutline
+        .circle(thought.x, thought.y, thought.radius + 8)
+        .fill({ color: 0x718c7d, alpha: 0.22 });
     }
   }
 }

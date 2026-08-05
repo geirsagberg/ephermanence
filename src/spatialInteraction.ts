@@ -12,7 +12,13 @@ import type { SpaceState, Thought } from './types';
 export type PointerKind = string;
 
 export type SpatialInteractionInput =
-  | { type: 'thought-pointer-down'; id: string; point: Point; singular: boolean }
+  | {
+      type: 'thought-pointer-down';
+      id: string;
+      point: Point;
+      singular: boolean;
+      detachOnTap?: boolean;
+    }
   | { type: 'clear-selection' }
   | { type: 'delete-selection' }
   | { type: 'edit-thought'; id: string; text: string }
