@@ -37,6 +37,12 @@ type ThoughtSpaceProps = {
   className?: string;
 };
 
+type RenderedSceneInputs = {
+  snapshot: SpatialInteractionSnapshot;
+  ambientBubbleSettings: AmbientBubbleSettings;
+  editingThoughtId?: string;
+};
+
 export function ThoughtSpace({
   interaction,
   snapshot,
@@ -52,6 +58,8 @@ export function ThoughtSpace({
   const onInputRef = useRef(onInput);
   const ambientBubbleSettingsRef = useRef(ambientBubbleSettings);
   const editingThoughtIdRef = useRef(editingThoughtId);
+  const renderSpaceRef = useRef(() => {});
+  const renderedSceneInputsRef = useRef<RenderedSceneInputs | null>(null);
   const actionActivationRef = useRef(createPointerActivationGuard());
   const singleThoughtLongPressRef = useRef(
     createSingleThoughtLongPress(({ id, point }) => {
@@ -103,11 +111,18 @@ export function ThoughtSpace({
         return;
       }
       canvas = mountedScene.canvas;
-      renderSpace = () =>
+      renderSpace = () => {
         mountedScene.render(
           ambientBubbleSettingsRef.current,
           editingThoughtIdRef.current,
         );
+        renderedSceneInputsRef.current = {
+          snapshot: interaction.read(),
+          ambientBubbleSettings: ambientBubbleSettingsRef.current,
+          editingThoughtId: editingThoughtIdRef.current,
+        };
+      };
+      renderSpaceRef.current = renderSpace;
 
       const onMove = (event: PointerEvent) => {
         const rect = mountedScene.canvas.getBoundingClientRect();
@@ -262,20 +277,24 @@ export function ThoughtSpace({
 
     return () => {
       cancelled = true;
+      renderSpaceRef.current = () => {};
+      renderedSceneInputsRef.current = null;
       canvas?.cleanupSpace?.();
       if (scene) destroyScene();
     };
   }, [interaction]);
 
   useEffect(() => {
-    const canvas = hostRef.current?.querySelector('canvas');
-    if (canvas) window.dispatchEvent(new Event('resize'));
-  }, [
-    snapshot.state,
-    snapshot.attachmentCandidateIds,
-    ambientBubbleSettings,
-    editingThoughtId,
-  ]);
+    const rendered = renderedSceneInputsRef.current;
+    if (
+      rendered?.snapshot === snapshot &&
+      rendered.ambientBubbleSettings === ambientBubbleSettings &&
+      rendered.editingThoughtId === editingThoughtId
+    ) {
+      return;
+    }
+    renderSpaceRef.current();
+  }, [snapshot, ambientBubbleSettings, editingThoughtId]);
 
   const selectedThought = snapshot.state.thoughts.find(
     (thought) => thought.id === snapshot.selectedId,

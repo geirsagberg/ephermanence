@@ -28,6 +28,14 @@ function foreground(scene: SpatialFieldScene) {
   return scene.children[2] as Container;
 }
 
+function bonds(scene: SpatialFieldScene) {
+  return foreground(scene).children[0] as Container;
+}
+
+function thoughts(scene: SpatialFieldScene) {
+  return foreground(scene).children[1] as Container;
+}
+
 function fadingBonds(scene: SpatialFieldScene) {
   return scene.children[1] as Container;
 }
@@ -59,9 +67,10 @@ describe('spatial field scene', () => {
       viewport,
     );
 
-    expect(foreground(scene).children).toHaveLength(3);
-    expect(foreground(scene).children[1].eventMode).toBe('static');
-    expect(foreground(scene).children[2].eventMode).toBe('static');
+    expect(bonds(scene).children).toHaveLength(1);
+    expect(thoughts(scene).children).toHaveLength(2);
+    expect(thoughts(scene).children[0].eventMode).toBe('static');
+    expect(thoughts(scene).children[1].eventMode).toBe('static');
   });
 
   it('forwards the pointer identity needed to recognize a long press', () => {
@@ -77,13 +86,80 @@ describe('spatial field scene', () => {
     };
     scene.render(snapshot({ thoughts: [held], attachments: [] }), viewport);
 
-    foreground(scene).children[0].emit('pointerdown', {
+    thoughts(scene).children[0].emit('pointerdown', {
       global: new Point(12, 34),
       pointerId: 7,
       shiftKey: false,
     } as FederatedPointerEvent);
 
     expect(onPointerDown).toHaveBeenCalledWith('held', { x: 12, y: 34 }, false, 7);
+  });
+
+  it('reuses an unchanged Thought display object across drag frames', () => {
+    const scene = new SpatialFieldScene();
+    const thought = {
+      id: 'moving',
+      text: 'Moving',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
+    const renderedThought = thoughts(scene).children[0];
+
+    scene.render(
+      snapshot({ thoughts: [{ ...thought, x: 40 }], attachments: [] }),
+      viewport,
+    );
+
+    expect(thoughts(scene).children[0]).toBe(renderedThought);
+    expect(renderedThought.x).toBe(40);
+  });
+
+  it('reuses a Thought display object when its attachment halo changes', () => {
+    const scene = new SpatialFieldScene();
+    const thought = {
+      id: 'candidate',
+      text: 'Candidate',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
+    const renderedThought = thoughts(scene).children[0];
+
+    scene.render(
+      snapshot({ thoughts: [thought], attachments: [] }, ['candidate']),
+      viewport,
+    );
+
+    expect(thoughts(scene).children[0]).toBe(renderedThought);
+    expect(renderedThought.children[0].visible).toBe(true);
+  });
+
+  it('reuses a Bond display object while its endpoint moves', () => {
+    const scene = new SpatialFieldScene();
+    const first = {
+      id: 'first',
+      text: 'First',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    const second = { ...first, id: 'second', text: 'Second', x: 100 };
+    const attachments: [string, string][] = [['first', 'second']];
+    scene.render(snapshot({ thoughts: [first, second], attachments }), viewport);
+    const renderedBond = bonds(scene).children[0];
+
+    scene.render(
+      snapshot({ thoughts: [first, { ...second, x: 140 }], attachments }),
+      viewport,
+    );
+
+    expect(bonds(scene).children[0]).toBe(renderedBond);
   });
 
   it('hides the edited Thought while preserving its Bonds', () => {
@@ -105,9 +181,10 @@ describe('spatial field scene', () => {
       'editing',
     );
 
-    expect(foreground(scene).children).toHaveLength(2);
-    expect(foreground(scene).children[1].x).toBe(100);
-    expect(foreground(scene).children[1].eventMode).toBe('static');
+    expect(bonds(scene).children).toHaveLength(1);
+    expect(thoughts(scene).children).toHaveLength(1);
+    expect(thoughts(scene).children[0].x).toBe(100);
+    expect(thoughts(scene).children[0].eventMode).toBe('static');
   });
 
   it('fades a removed Bond after release', () => {

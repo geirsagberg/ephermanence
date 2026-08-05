@@ -43,6 +43,14 @@ type ThoughtPointerDown = (
 ) => void;
 type BondGeometry = { from: Point; to: Point };
 type ThoughtShadowFilterFactory = () => DropShadowFilter;
+type ActiveBond = { graphic: Graphics; geometry: BondGeometry };
+type ThoughtBubbleRecord = {
+  bubble: Container;
+  attachmentHalo: Graphics;
+  text: string;
+  radius: number;
+  tone: number;
+};
 
 const bondFadeDuration = 240;
 
@@ -50,7 +58,10 @@ export class SpatialFieldScene extends Container {
   private readonly ambient = new AmbientBubbleField();
   private readonly bondFades = new Container();
   private readonly foreground = new Container();
-  private readonly previousBonds = new Map<string, BondGeometry>();
+  private readonly bonds = new Container();
+  private readonly thoughts = new Container();
+  private readonly activeBonds = new Map<string, ActiveBond>();
+  private readonly thoughtBubbles = new Map<string, ThoughtBubbleRecord>();
   private readonly fadingBonds = new Map<
     string,
     { graphic: Graphics; elapsed: number }
@@ -61,6 +72,7 @@ export class SpatialFieldScene extends Container {
     private readonly createThoughtShadowFilter?: ThoughtShadowFilterFactory,
   ) {
     super();
+    this.foreground.addChild(this.bonds, this.thoughts);
     this.addChild(this.ambient, this.bondFades, this.foreground);
   }
 
@@ -78,12 +90,11 @@ export class SpatialFieldScene extends Container {
     this.foreground.position.set(camera.x, camera.y);
     this.foreground.scale.set(camera.zoom);
     this.ambient.update(bounds, settings);
-    this.foreground
-      .removeChildren()
-      .forEach((child) => child.destroy({ children: true }));
+    this.bonds.removeChildren();
+    this.thoughts.removeChildren();
 
     const positions = new Map(state.thoughts.map((thought) => [thought.id, thought]));
-    const nextBonds = new Map<string, BondGeometry>();
+    const nextBondKeys = new Set<string>();
     for (const [a, b] of state.attachments) {
       const from = positions.get(a);
       const to = positions.get(b);
@@ -95,36 +106,60 @@ export class SpatialFieldScene extends Container {
         fading.graphic.destroy();
         this.fadingBonds.delete(key);
       }
-      nextBonds.set(key, {
+      const geometry = {
         from: { x: from.x, y: from.y },
         to: { x: to.x, y: to.y },
-      });
-      this.foreground.addChild(
-        createBond({ from: { x: from.x, y: from.y }, to: { x: to.x, y: to.y } }),
-      );
+      };
+      nextBondKeys.add(key);
+      let active = this.activeBonds.get(key);
+      if (!active) {
+        active = { graphic: createBond(geometry), geometry };
+        this.activeBonds.set(key, active);
+      } else if (!sameBondGeometry(active.geometry, geometry)) {
+        drawBond(active.graphic, geometry);
+        active.geometry = geometry;
+      }
+      this.bonds.addChild(active.graphic);
     }
 
-    for (const [key, geometry] of this.previousBonds) {
-      if (nextBonds.has(key) || this.fadingBonds.has(key)) continue;
-      const graphic = createBond(geometry);
-      this.bondFades.addChild(graphic);
-      this.fadingBonds.set(key, { graphic, elapsed: 0 });
-    }
-    this.previousBonds.clear();
-    for (const [key, geometry] of nextBonds) {
-      this.previousBonds.set(key, geometry);
+    for (const [key, active] of this.activeBonds) {
+      if (nextBondKeys.has(key)) continue;
+      this.bondFades.addChild(active.graphic);
+      this.fadingBonds.set(key, { graphic: active.graphic, elapsed: 0 });
+      this.activeBonds.delete(key);
     }
 
+    const nextThoughtIds = new Set<string>();
     for (const thought of state.thoughts) {
       if (thought.id === hiddenThoughtId) continue;
-      this.foreground.addChild(
-        createThoughtBubble(
+      nextThoughtIds.add(thought.id);
+      const attachmentCandidate = attachmentCandidateIds.includes(thought.id);
+      let record = this.thoughtBubbles.get(thought.id);
+      if (!record || !sameThoughtVisual(record, thought)) {
+        record?.bubble.destroy({ children: true });
+        const created = createThoughtBubble(
           thought,
-          attachmentCandidateIds.includes(thought.id),
           this.onThoughtPointerDown,
           this.createThoughtShadowFilter,
-        ),
-      );
+        );
+        record = {
+          ...created,
+          text: thought.text,
+          radius: thought.radius,
+          tone: thought.tone,
+        };
+        this.thoughtBubbles.set(thought.id, record);
+      }
+      record.bubble.position.set(thought.x, thought.y);
+      record.bubble.cursor = 'grab';
+      record.attachmentHalo.visible = attachmentCandidate;
+      this.thoughts.addChild(record.bubble);
+    }
+
+    for (const [id, record] of this.thoughtBubbles) {
+      if (nextThoughtIds.has(id)) continue;
+      record.bubble.destroy({ children: true });
+      this.thoughtBubbles.delete(id);
     }
   }
 
@@ -141,12 +176,37 @@ export class SpatialFieldScene extends Container {
   }
 }
 
+function sameThoughtVisual(
+  record: ThoughtBubbleRecord,
+  thought: SpatialInteractionSnapshot['state']['thoughts'][number],
+) {
+  return (
+    record.text === thought.text &&
+    record.radius === thought.radius &&
+    record.tone === thought.tone
+  );
+}
+
+function sameBondGeometry(left: BondGeometry, right: BondGeometry) {
+  return (
+    left.from.x === right.from.x &&
+    left.from.y === right.from.y &&
+    left.to.x === right.to.x &&
+    left.to.y === right.to.y
+  );
+}
+
 function bondKey(a: string, b: string) {
   return a < b ? `${a}:${b}` : `${b}:${a}`;
 }
 
-function createBond({ from, to }: BondGeometry) {
-  return new Graphics()
+function createBond(geometry: BondGeometry) {
+  return drawBond(new Graphics(), geometry);
+}
+
+function drawBond(graphic: Graphics, { from, to }: BondGeometry) {
+  return graphic
+    .clear()
     .moveTo(from.x, from.y)
     .lineTo(to.x, to.y)
     .stroke({ color: 0xa6a99e, width: 10, alpha: 0.16 });
@@ -218,7 +278,6 @@ export async function mountSpatialFieldScene(
 
 function createThoughtBubble(
   thought: SpatialInteractionSnapshot['state']['thoughts'][number],
-  attachmentCandidate: boolean,
   onPointerDown: ThoughtPointerDown,
   createShadowFilter?: ThoughtShadowFilterFactory,
 ) {
@@ -231,12 +290,10 @@ function createThoughtBubble(
     contains: (x: number, y: number) => x * x + y * y <= thought.radius * thought.radius,
   };
 
-  const attachmentHalo = attachmentCandidate
-    ? new Graphics()
-        .circle(0, 0, thought.radius + 7)
-        .fill({ color: 0xf5fff9, alpha: 0.2 })
-        .stroke({ color: 0x718c7d, alpha: 0.68, width: 4 })
-    : null;
+  const attachmentHalo = new Graphics()
+    .circle(0, 0, thought.radius + 7)
+    .fill({ color: 0xf5fff9, alpha: 0.2 })
+    .stroke({ color: 0x718c7d, alpha: 0.68, width: 4 });
   const body = new Graphics()
     .circle(0, 0, thought.radius)
     .fill({ color: getThoughtTone(thought.tone).canvas, alpha: 0.96 })
@@ -260,8 +317,10 @@ function createThoughtBubble(
     }),
   });
   label.anchor.set(0.5);
-  if (attachmentHalo) bubble.addChild(attachmentHalo);
-  bubble.addChild(body, label);
+  const cachedVisual = new Container();
+  cachedVisual.addChild(body, label);
+  cachedVisual.cacheAsTexture({ antialias: true });
+  bubble.addChild(attachmentHalo, cachedVisual);
   bubble.on('pointerdown', (event: FederatedPointerEvent) => {
     onPointerDown(
       thought.id,
@@ -271,7 +330,7 @@ function createThoughtBubble(
     );
     bubble.cursor = 'grabbing';
   });
-  return bubble;
+  return { bubble, attachmentHalo };
 }
 
 function createThoughtShadowFilter() {
