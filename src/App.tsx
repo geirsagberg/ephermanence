@@ -14,7 +14,11 @@ import {
 } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { spaceForQuery } from './initialSpace';
-import { createSpatialField, type SpatialFieldInput } from './spatialField';
+import {
+  createSpatialInteraction,
+  type SpatialInteractionEffect,
+  type SpatialInteractionInput,
+} from './spatialInteraction';
 import { loadStoredSpace, saveStoredSpace, type SpaceStorage } from './spaceStorage';
 
 function Wordmark() {
@@ -37,12 +41,12 @@ export function App() {
       return null;
     }
   });
-  const [field] = useState(() => {
+  const [interaction] = useState(() => {
     const initialState =
       loadStoredSpace(storage) ?? spaceForQuery(window.location.search);
-    return createSpatialField(initialState);
+    return createSpatialInteraction(initialState);
   });
-  const [fieldSnapshot, setFieldSnapshot] = useState(field.read);
+  const [interactionSnapshot, setInteractionSnapshot] = useState(interaction.read);
   const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
   const [draftWorldPosition, setDraftWorldPosition] = useState<DraftPosition | null>(
     null,
@@ -50,15 +54,35 @@ export function App() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [ambientBubbleSettings, setAmbientBubbleSettings] =
     useState<AmbientBubbleSettings>(() => readAmbientBubbleSettings());
-  const state = fieldSnapshot.state;
+  const state = interactionSnapshot.state;
 
   const sendToField = useCallback(
-    (input: SpatialFieldInput) => {
-      const next = field.dispatch(input);
-      setFieldSnapshot(next);
-      if (shouldPersist(input)) saveStoredSpace(storage, next.state);
+    (input: SpatialInteractionInput) => {
+      const transition = interaction.dispatch(input);
+      setInteractionSnapshot(transition.snapshot);
+      if (shouldPersist(input)) {
+        saveStoredSpace(storage, transition.snapshot.state);
+      }
+      applyEffects(transition.effects, {
+        openCreate(screenPosition, worldPosition) {
+          setDraftPosition(screenPosition);
+          setDraftWorldPosition(worldPosition);
+          setEditingId(null);
+        },
+        openEdit(thought, position) {
+          setDraftPosition(position);
+          setDraftWorldPosition(null);
+          setEditingId(thought.id);
+        },
+        closeComposer() {
+          setDraftPosition(null);
+          setDraftWorldPosition(null);
+          setEditingId(null);
+        },
+      });
+      return transition;
     },
-    [field, storage],
+    [interaction, storage],
   );
 
   const createThought = (text: string, position: DraftPosition) => {
@@ -80,27 +104,11 @@ export function App() {
           <Wordmark />
         </header>
         <ThoughtSpace
-          state={state}
-          selectedId={fieldSnapshot.selectedId}
-          attachmentCandidateIds={fieldSnapshot.attachmentCandidateIds}
+          interaction={interaction}
+          snapshot={interactionSnapshot}
           onInput={sendToField}
           ambientBubbleSettings={ambientBubbleSettings}
           composerOpen={draftPosition !== null}
-          onCreateRequest={(screenPosition, worldPosition) => {
-            setDraftPosition(screenPosition);
-            setDraftWorldPosition(worldPosition);
-            setEditingId(null);
-          }}
-          onEditRequest={(thought, position) => {
-            setDraftPosition(position);
-            setDraftWorldPosition(null);
-            setEditingId(thought.id);
-          }}
-          onEmptyClick={() => {
-            setDraftPosition(null);
-            setDraftWorldPosition(null);
-            setEditingId(null);
-          }}
         />
       </main>
       {tuningAmbientBubbles && (
@@ -175,11 +183,33 @@ function readNumber(query: URLSearchParams, key: string, fallback: number) {
   return Number.isFinite(value) && query.has(key) ? value : fallback;
 }
 
-function shouldPersist(input: SpatialFieldInput) {
+function shouldPersist(input: SpatialInteractionInput) {
   return (
-    input.type === 'pointer-up' ||
+    input.type === 'surface-pointer-up' ||
     input.type === 'delete-selection' ||
     input.type === 'edit-thought' ||
     input.type === 'create-thought'
   );
+}
+
+type EffectHandlers = {
+  openCreate: (screenPosition: DraftPosition, worldPosition: DraftPosition) => void;
+  openEdit: (thought: { id: string }, position: DraftPosition) => void;
+  closeComposer: () => void;
+};
+
+function applyEffects(effects: SpatialInteractionEffect[], handlers: EffectHandlers) {
+  for (const effect of effects) {
+    switch (effect.type) {
+      case 'request-create':
+        handlers.openCreate(effect.screenPosition, effect.worldPosition);
+        break;
+      case 'request-edit':
+        handlers.openEdit(effect.thought, effect.screenPosition);
+        break;
+      case 'empty-activated':
+        handlers.closeComposer();
+        break;
+    }
+  }
 }

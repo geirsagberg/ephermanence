@@ -8,57 +8,38 @@ import {
   type AmbientBubbleSettings,
 } from '../ambientBubbleField';
 import { findFreeComposerPosition } from '../freeComposerPosition';
-import { createSpaceCamera } from '../spaceCamera';
-import type { SpatialFieldInput } from '../spatialField';
-import type { SpaceState, Thought } from '../types';
+import type {
+  SpatialInteraction,
+  SpatialInteractionInput,
+  SpatialInteractionSnapshot,
+  SpatialInteractionTransition,
+} from '../spatialInteraction';
 import { ThoughtLauncher } from './ThoughtLauncher';
 
 const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 
 type ThoughtSpaceProps = {
-  state: SpaceState;
-  selectedId: string | null;
-  attachmentCandidateIds: string[];
-  onInput: (input: SpatialFieldInput) => void;
-  onCreateRequest?: (
-    screenPosition: { x: number; y: number },
-    worldPosition: { x: number; y: number },
-  ) => void;
-  onEditRequest?: (thought: Thought, position: { x: number; y: number }) => void;
-  onEmptyClick?: () => void;
+  interaction: SpatialInteraction;
+  snapshot: SpatialInteractionSnapshot;
+  onInput: (input: SpatialInteractionInput) => SpatialInteractionTransition;
   composerOpen?: boolean;
   ambientBubbleSettings?: AmbientBubbleSettings;
   className?: string;
 };
 
 export function ThoughtSpace({
-  state,
-  selectedId,
-  attachmentCandidateIds,
+  interaction,
+  snapshot,
   onInput,
-  onCreateRequest,
-  onEditRequest,
-  onEmptyClick,
   composerOpen = false,
   ambientBubbleSettings = defaultAmbientBubbleSettings,
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const camera = useRef(createSpaceCamera()).current;
-  const stateRef = useRef(state);
-  const attachmentCandidateIdsRef = useRef(new Set(attachmentCandidateIds));
   const onInputRef = useRef(onInput);
-  const onCreateRequestRef = useRef(onCreateRequest);
-  const onEditRequestRef = useRef(onEditRequest);
-  const onEmptyClickRef = useRef(onEmptyClick);
   const ambientBubbleSettingsRef = useRef(ambientBubbleSettings);
 
-  stateRef.current = state;
-  attachmentCandidateIdsRef.current = new Set(attachmentCandidateIds);
   onInputRef.current = onInput;
-  onCreateRequestRef.current = onCreateRequest;
-  onEditRequestRef.current = onEditRequest;
-  onEmptyClickRef.current = onEmptyClick;
   ambientBubbleSettingsRef.current = ambientBubbleSettings;
 
   useEffect(() => {
@@ -69,10 +50,6 @@ export function ThoughtSpace({
     let cancelled = false;
     let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
     let destroyed = false;
-    let pointerPosition: { x: number; y: number } | null = null;
-    const touchPoints = new Map<number, { x: number; y: number }>();
-    let pinchGesture = false;
-    let pinchActive = false;
     let renderSpace = () => {};
     const destroyApp = () => {
       if (destroyed) return;
@@ -102,14 +79,15 @@ export function ThoughtSpace({
         app.stage.addChild(ambientField, layer);
 
         renderSpace = () => {
-          const current = stateRef.current;
-          const cameraState = camera.read();
+          const currentSnapshot = interaction.read();
+          const current = currentSnapshot.state;
+          const cameraState = currentSnapshot.camera;
           ambientField.position.set(cameraState.x, cameraState.y);
           ambientField.scale.set(cameraState.zoom);
           layer.position.set(cameraState.x, cameraState.y);
           layer.scale.set(cameraState.zoom);
-          const topLeft = camera.screenToWorld({ x: 0, y: 0 });
-          const bottomRight = camera.screenToWorld({
+          const topLeft = interaction.screenToWorld({ x: 0, y: 0 });
+          const bottomRight = interaction.screenToWorld({
             x: app.screen.width,
             y: app.screen.height,
           });
@@ -141,7 +119,7 @@ export function ThoughtSpace({
 
           for (const thought of current.thoughts) {
             const position = positions.get(thought.id)!;
-            const isAttachmentCandidate = attachmentCandidateIdsRef.current.has(
+            const isAttachmentCandidate = currentSnapshot.attachmentCandidateIds.includes(
               thought.id,
             );
             const bubble = new Container();
@@ -210,97 +188,48 @@ export function ThoughtSpace({
           const rect = app.canvas.getBoundingClientRect();
           const x = event.clientX - rect.left;
           const y = event.clientY - rect.top;
-          pointerPosition =
-            x >= 0 && y >= 0 && x <= rect.width && y <= rect.height ? { x, y } : null;
-
-          if (event.pointerType === 'touch' && touchPoints.has(event.pointerId)) {
-            touchPoints.set(event.pointerId, { x, y });
-            if (pinchActive) {
-              const points = [...touchPoints.values()];
-              if (points.length === 2) {
-                camera.dispatch({
-                  type: 'pinch-move',
-                  points: [points[0], points[1]],
-                });
-                renderSpace();
-              }
-              return;
-            }
-            if (pinchGesture) return;
-          }
-
-          const cameraMove = camera.dispatch({ type: 'pointer-move', point: { x, y } });
-          if (cameraMove.handled) {
-            if (cameraMove.navigated) {
-              onInputRef.current({ type: 'clear-selection' });
-            }
-            renderSpace();
-            return;
-          }
-
-          onInputRef.current({
-            type: 'pointer-move',
+          const transition = onInputRef.current({
+            type: 'surface-pointer-move',
             point: { x, y },
-            zoom: camera.read().zoom,
+            pointerId: event.pointerId,
+            pointerKind: event.pointerType,
+            inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height,
           });
+          if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
+          if (transition.render) renderSpace();
         };
 
         const onUp = (event: PointerEvent) => {
-          if (event.pointerType === 'touch' && touchPoints.has(event.pointerId)) {
-            touchPoints.delete(event.pointerId);
-            if (pinchGesture) {
-              if (pinchActive && touchPoints.size < 2) {
-                camera.dispatch({ type: 'pinch-end' });
-                pinchActive = false;
-              }
-              if (touchPoints.size === 0) pinchGesture = false;
-              if (canvas) canvas.style.cursor = 'pointer';
-              return;
-            }
-          }
-
-          const cameraUp = camera.dispatch({ type: 'pointer-up' });
-          if (cameraUp.handled) {
-            if (canvas) canvas.style.cursor = 'pointer';
-            return;
-          }
-          onInputRef.current({ type: 'pointer-up' });
+          const transition = onInputRef.current({
+            type: 'surface-pointer-up',
+            pointerId: event.pointerId,
+            pointerKind: event.pointerType,
+          });
+          if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
+          if (transition.render) renderSpace();
         };
 
         const onDoubleClick = (event: MouseEvent) => {
           const rect = app.canvas.getBoundingClientRect();
-          const x = event.clientX - rect.left;
-          const y = event.clientY - rect.top;
-          const worldPoint = camera.screenToWorld({ x, y });
-          const thought = [...stateRef.current.thoughts].reverse().find((candidate) => {
-            return (
-              Math.hypot(candidate.x - worldPoint.x, candidate.y - worldPoint.y) <=
-              candidate.radius
-            );
+          onInputRef.current({
+            type: 'canvas-double-click',
+            point: {
+              x: event.clientX - rect.left,
+              y: event.clientY - rect.top,
+            },
           });
           event.preventDefault();
-          if (thought) {
-            onInputRef.current({ type: 'clear-selection' });
-            onEditRequestRef.current?.(thought, camera.worldToScreen(thought));
-            return;
-          }
-          onCreateRequestRef.current?.({ x, y }, worldPoint);
         };
 
         const onCanvasClick = (event: MouseEvent) => {
           const rect = app.canvas.getBoundingClientRect();
-          const x = event.clientX - rect.left;
-          const y = event.clientY - rect.top;
-          const worldPoint = camera.screenToWorld({ x, y });
-          const overThought = stateRef.current.thoughts.some((thought) => {
-            return (
-              Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
-              thought.radius
-            );
+          onInputRef.current({
+            type: 'canvas-click',
+            point: {
+              x: event.clientX - rect.left,
+              y: event.clientY - rect.top,
+            },
           });
-          if (overThought) return;
-          onInputRef.current({ type: 'clear-selection' });
-          onEmptyClickRef.current?.();
         };
 
         const onPointerDown = (event: PointerEvent) => {
@@ -311,50 +240,29 @@ export function ThoughtSpace({
             y: event.clientY - rect.top,
           };
 
-          if (event.pointerType === 'touch') {
-            if (touchPoints.size >= 2) return;
-            touchPoints.set(event.pointerId, point);
-            if (touchPoints.size === 2) {
-              const points = [...touchPoints.values()];
-              pinchGesture = true;
-              pinchActive = true;
-              camera.dispatch({ type: 'pointer-up' });
-              onInputRef.current({ type: 'pointer-up' });
-              onInputRef.current({ type: 'clear-selection' });
-              onEmptyClickRef.current?.();
-              camera.dispatch({
-                type: 'pinch-start',
-                points: [points[0], points[1]],
-              });
-              event.preventDefault();
-              return;
-            }
-          }
-
-          const worldPoint = camera.screenToWorld(point);
-          const overThought = stateRef.current.thoughts.some((thought) => {
-            return (
-              Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
-              thought.radius
-            );
+          const transition = onInputRef.current({
+            type: 'canvas-pointer-down',
+            point,
+            pointerId: event.pointerId,
+            pointerKind: event.pointerType,
           });
-          if (overThought) return;
-          camera.dispatch({ type: 'pan-start', point });
-          canvas!.style.cursor = 'grabbing';
+          if (transition.cursor) canvas!.style.cursor = transition.cursor;
+          if (event.pointerType === 'touch' && transition.render) {
+            event.preventDefault();
+          }
+          if (transition.render) renderSpace();
         };
 
         const onWheel = (event: WheelEvent) => {
           event.preventDefault();
           const rect = app.canvas.getBoundingClientRect();
-          camera.dispatch({
+          const transition = onInputRef.current({
             type: 'wheel',
             point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
             deltaY: event.deltaY,
             pinching: event.ctrlKey,
           });
-          onInputRef.current({ type: 'clear-selection' });
-          onEmptyClickRef.current?.();
-          renderSpace();
+          if (transition.render) renderSpace();
         };
 
         const onKeyDown = (event: KeyboardEvent) => {
@@ -366,37 +274,30 @@ export function ThoughtSpace({
             return;
           }
 
-          if (event.key === 'Enter') {
-            if (event.repeat) return;
-            event.preventDefault();
-            const screenPosition = pointerPosition ?? {
-              x: app.screen.width / 2,
-              y: app.screen.height / 2,
-            };
-            onInputRef.current({ type: 'clear-selection' });
-            onCreateRequestRef.current?.(
-              screenPosition,
-              camera.screenToWorld(screenPosition),
-            );
+          if (
+            event.key !== 'Enter' &&
+            event.key !== '+' &&
+            event.key !== '-' &&
+            event.key !== '0'
+          ) {
             return;
           }
-
-          if (event.key !== '+' && event.key !== '-' && event.key !== '0') return;
+          if (event.key === 'Enter' && event.repeat) return;
 
           event.preventDefault();
-          const center = { x: app.screen.width / 2, y: app.screen.height / 2 };
-          camera.dispatch({ type: 'zoom-key', key: event.key, center });
-          onInputRef.current({ type: 'clear-selection' });
-          onEmptyClickRef.current?.();
-          renderSpace();
+          const transition = onInputRef.current({
+            type: 'key-down',
+            key: event.key,
+          });
+          if (transition.render) renderSpace();
         };
 
         const syncViewport = () => {
-          camera.dispatch({
+          const transition = onInputRef.current({
             type: 'viewport-resize',
             size: { width: app.screen.width, height: app.screen.height },
           });
-          renderSpace();
+          if (transition.render) renderSpace();
         };
 
         window.addEventListener('pointermove', onMove);
@@ -431,17 +332,20 @@ export function ThoughtSpace({
       canvas?.cleanupSpace?.();
       if (canvas) destroyApp();
     };
-  }, []);
+  }, [interaction]);
 
   useEffect(() => {
     const canvas = hostRef.current?.querySelector('canvas');
     if (canvas) window.dispatchEvent(new Event('resize'));
-  }, [state, attachmentCandidateIds, ambientBubbleSettings]);
+  }, [snapshot.state, snapshot.attachmentCandidateIds, ambientBubbleSettings]);
 
-  const selectedThought = state.thoughts.find((thought) => thought.id === selectedId);
+  const selectedThought = snapshot.state.thoughts.find(
+    (thought) => thought.id === snapshot.selectedId,
+  );
   const host = hostRef.current;
   const selectedPosition =
-    selectedThought && host ? camera.worldToScreen(selectedThought) : null;
+    selectedThought && host ? interaction.worldToScreen(selectedThought) : null;
+  const zoom = snapshot.camera.zoom;
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
@@ -451,14 +355,14 @@ export function ThoughtSpace({
             title="Edit thought"
             className="bubble-edit"
             style={{
-              left:
-                selectedPosition.x - selectedThought.radius * camera.read().zoom * 0.69,
-              top:
-                selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.69,
+              left: selectedPosition.x - selectedThought.radius * zoom * 0.69,
+              top: selectedPosition.y - selectedThought.radius * zoom * 0.69,
             }}
             onClick={() => {
-              onInputRef.current({ type: 'clear-selection' });
-              onEditRequestRef.current?.(selectedThought, selectedPosition);
+              onInputRef.current({
+                type: 'canvas-double-click',
+                point: selectedPosition,
+              });
             }}
             aria-label={`Edit thought: ${selectedThought.text}`}
           >
@@ -468,10 +372,8 @@ export function ThoughtSpace({
             title="Delete thought"
             className="bubble-delete"
             style={{
-              left:
-                selectedPosition.x + selectedThought.radius * camera.read().zoom * 0.69,
-              top:
-                selectedPosition.y - selectedThought.radius * camera.read().zoom * 0.69,
+              left: selectedPosition.x + selectedThought.radius * zoom * 0.69,
+              top: selectedPosition.y - selectedThought.radius * zoom * 0.69,
             }}
             onClick={() => {
               onInputRef.current({ type: 'delete-selection' });
@@ -485,8 +387,7 @@ export function ThoughtSpace({
             className="bubble-grab"
             style={{
               left: selectedPosition.x,
-              top:
-                selectedPosition.y + selectedThought.radius * camera.read().zoom * 0.99,
+              top: selectedPosition.y + selectedThought.radius * zoom * 0.99,
             }}
             onPointerDown={(event) => {
               event.preventDefault();
@@ -513,22 +414,19 @@ export function ThoughtSpace({
       <ThoughtLauncher
         composerOpen={composerOpen}
         getTapPosition={() => {
-          const zoom = camera.read().zoom;
+          const current = interaction.read();
+          const currentZoom = current.camera.zoom;
           return findFreeComposerPosition({
-            thoughts: stateRef.current.thoughts.map((thought) => ({
-              ...camera.worldToScreen(thought),
-              radius: thought.radius * zoom,
+            thoughts: current.state.thoughts.map((thought) => ({
+              ...interaction.worldToScreen(thought),
+              radius: thought.radius * currentZoom,
             })),
             viewport: { width: window.innerWidth, height: window.innerHeight },
-            zoom,
+            zoom: currentZoom,
           });
         }}
         onOpen={(screenPosition) => {
-          onInputRef.current({ type: 'clear-selection' });
-          onCreateRequestRef.current?.(
-            screenPosition,
-            camera.screenToWorld(screenPosition),
-          );
+          onInputRef.current({ type: 'launcher-open', point: screenPosition });
         }}
       />
     </div>

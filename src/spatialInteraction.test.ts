@@ -1,0 +1,209 @@
+import { describe, expect, it } from 'vitest';
+
+import { createSpatialInteraction } from './spatialInteraction';
+import type { Thought } from './types';
+
+function thought(id: string, x: number, y = 100): Thought {
+  return { id, text: id, x, y, radius: 50, tone: 0 };
+}
+
+function interaction(thoughts: Thought[] = []) {
+  const spatialInteraction = createSpatialInteraction({ thoughts, attachments: [] });
+  spatialInteraction.dispatch({
+    type: 'viewport-resize',
+    size: { width: 1000, height: 800 },
+  });
+  return spatialInteraction;
+}
+
+describe('spatial field interaction', () => {
+  it('arbitrates empty-space dragging to the camera', () => {
+    const spatialInteraction = interaction([thought('fixed', 0)]);
+
+    spatialInteraction.dispatch({
+      type: 'canvas-pointer-down',
+      point: { x: 100, y: 100 },
+      pointerId: 1,
+      pointerKind: 'mouse',
+    });
+    const moved = spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: 120, y: 90 },
+      pointerId: 1,
+      pointerKind: 'mouse',
+      inside: true,
+    });
+
+    expect(moved.snapshot.camera).toEqual({ x: 520, y: 390, zoom: 1 });
+    expect(moved.snapshot.state.thoughts).toEqual([thought('fixed', 0)]);
+  });
+
+  it('clears selection only after camera navigation passes the drag threshold', () => {
+    const existing = thought('selected', 0, 0);
+    const spatialInteraction = interaction([existing]);
+    const thoughtPoint = spatialInteraction.worldToScreen(existing);
+    spatialInteraction.dispatch({
+      type: 'thought-pointer-down',
+      id: existing.id,
+      point: thoughtPoint,
+      singular: false,
+    });
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-up',
+      pointerId: 1,
+      pointerKind: 'mouse',
+    });
+    expect(spatialInteraction.read().selectedId).toBe(existing.id);
+
+    spatialInteraction.dispatch({
+      type: 'canvas-pointer-down',
+      point: { x: 100, y: 100 },
+      pointerId: 1,
+      pointerKind: 'mouse',
+    });
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: 103, y: 100 },
+      pointerId: 1,
+      pointerKind: 'mouse',
+      inside: true,
+    });
+    expect(spatialInteraction.read().selectedId).toBe(existing.id);
+
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: 105, y: 100 },
+      pointerId: 1,
+      pointerKind: 'mouse',
+      inside: true,
+    });
+
+    expect(spatialInteraction.read().selectedId).toBeNull();
+  });
+
+  it('arbitrates a Thought drag to the spatial field at the current zoom', () => {
+    const spatialInteraction = interaction([thought('moving', 0, 0)]);
+    spatialInteraction.dispatch({
+      type: 'wheel',
+      point: { x: 500, y: 400 },
+      deltaY: -Math.log(2) / 0.002,
+      pinching: false,
+    });
+    const screenPoint = spatialInteraction.worldToScreen({ x: 0, y: 0 });
+
+    spatialInteraction.dispatch({
+      type: 'thought-pointer-down',
+      id: 'moving',
+      point: screenPoint,
+      singular: false,
+    });
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: screenPoint.x + 20, y: screenPoint.y },
+      pointerId: 1,
+      pointerKind: 'mouse',
+      inside: true,
+    });
+    const released = spatialInteraction.dispatch({
+      type: 'surface-pointer-up',
+      pointerId: 1,
+      pointerKind: 'mouse',
+    });
+
+    expect(released.snapshot.state.thoughts[0].x).toBeCloseTo(10);
+    expect(released.snapshot.camera.zoom).toBeCloseTo(2);
+  });
+
+  it('cancels a Thought drag when a second touch begins a pinch', () => {
+    const spatialInteraction = interaction([thought('moving', 0, 0)]);
+    const point = spatialInteraction.worldToScreen({ x: 0, y: 0 });
+    spatialInteraction.dispatch({
+      type: 'thought-pointer-down',
+      id: 'moving',
+      point,
+      singular: false,
+    });
+    spatialInteraction.dispatch({
+      type: 'canvas-pointer-down',
+      point,
+      pointerId: 1,
+      pointerKind: 'touch',
+    });
+
+    const pinching = spatialInteraction.dispatch({
+      type: 'canvas-pointer-down',
+      point: { x: point.x + 100, y: point.y },
+      pointerId: 2,
+      pointerKind: 'touch',
+    });
+
+    expect(pinching.snapshot.isDragging).toBe(false);
+    expect(pinching.snapshot.selectedId).toBeNull();
+    expect(pinching.effects).toEqual([{ type: 'empty-activated' }]);
+  });
+
+  it('requests in-place creation on empty double-click', () => {
+    const spatialInteraction = interaction();
+
+    const transition = spatialInteraction.dispatch({
+      type: 'canvas-double-click',
+      point: { x: 650, y: 450 },
+    });
+
+    expect(transition.effects).toEqual([
+      {
+        type: 'request-create',
+        screenPosition: { x: 650, y: 450 },
+        worldPosition: { x: 150, y: 50 },
+      },
+    ]);
+  });
+
+  it('requests editing when double-clicking a Thought', () => {
+    const existing = thought('edit', 40, -20);
+    const spatialInteraction = interaction([existing]);
+    const screenPosition = spatialInteraction.worldToScreen(existing);
+
+    const transition = spatialInteraction.dispatch({
+      type: 'canvas-double-click',
+      point: screenPosition,
+    });
+
+    expect(transition.effects).toEqual([
+      { type: 'request-edit', thought: existing, screenPosition },
+    ]);
+  });
+
+  it('opens creation at the pointer, then falls back to viewport center', () => {
+    const spatialInteraction = interaction();
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: 700, y: 300 },
+      pointerId: 1,
+      pointerKind: 'mouse',
+      inside: true,
+    });
+
+    expect(
+      spatialInteraction.dispatch({ type: 'key-down', key: 'Enter' }).effects[0],
+    ).toMatchObject({
+      type: 'request-create',
+      screenPosition: { x: 700, y: 300 },
+    });
+
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: 1200, y: 300 },
+      pointerId: 1,
+      pointerKind: 'mouse',
+      inside: false,
+    });
+
+    expect(
+      spatialInteraction.dispatch({ type: 'key-down', key: 'Enter' }).effects[0],
+    ).toMatchObject({
+      type: 'request-create',
+      screenPosition: { x: 500, y: 400 },
+    });
+  });
+});
