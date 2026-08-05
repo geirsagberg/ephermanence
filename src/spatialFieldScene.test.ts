@@ -1,4 +1,4 @@
-import { Container, Point, type FederatedPointerEvent } from 'pixi.js';
+import { Container, Graphics, Point, type FederatedPointerEvent } from 'pixi.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { defaultAmbientBubbleSettings, SpatialFieldScene } from './spatialFieldScene';
@@ -137,6 +137,28 @@ describe('spatial field scene', () => {
 
     expect(thoughts(scene).children[0]).toBe(renderedThought);
     expect(renderedThought.children[0].visible).toBe(true);
+  });
+
+  it('reserves texture space for the full filtered Thought shadow', () => {
+    const scene = new SpatialFieldScene(undefined, () => ({ padding: 34 }) as never);
+    const thought = {
+      id: 'shadowed',
+      text: 'Shadowed',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
+
+    const cachedVisual = thoughts(scene).children[0].children[1] as Container;
+    const cachePadding = cachedVisual.children[0] as Graphics;
+
+    expect(cachedVisual.children).toHaveLength(3);
+    expect(cachePadding.bounds.minX).toBeLessThanOrEqual(-thought.radius - 34);
+    expect(cachePadding.bounds.maxX).toBeGreaterThanOrEqual(thought.radius + 34);
+    expect(cachePadding.bounds.minY).toBeLessThanOrEqual(-thought.radius - 34);
+    expect(cachePadding.bounds.maxY).toBeGreaterThanOrEqual(thought.radius + 34);
   });
 
   it('reuses a Bond display object while its endpoint moves', () => {

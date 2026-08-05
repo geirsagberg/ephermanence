@@ -301,7 +301,8 @@ function createThoughtBubble(
     .fill({ color: 0xffffff, alpha: 0.15 })
     .circle(0, 0, thought.radius - 1)
     .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
-  if (createShadowFilter) body.filters = [createShadowFilter()];
+  const shadowFilter = createShadowFilter?.();
+  if (shadowFilter) body.filters = [shadowFilter];
 
   const label = new Text({
     text: thought.text,
@@ -318,6 +319,13 @@ function createThoughtBubble(
   });
   label.anchor.set(0.5);
   const cachedVisual = new Container();
+  if (shadowFilter) {
+    const extent = thought.radius + shadowFilter.padding;
+    const cachePadding = new Graphics()
+      .rect(-extent, -extent, extent * 2, extent * 2)
+      .fill({ color: 0, alpha: 0 });
+    cachedVisual.addChild(cachePadding);
+  }
   cachedVisual.addChild(body, label);
   cachedVisual.cacheAsTexture({ antialias: true });
   bubble.addChild(attachmentHalo, cachedVisual);
