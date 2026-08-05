@@ -2,6 +2,7 @@ import { Grip, Pencil, X } from 'lucide-react';
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
+import { AmbientBubbleField } from '../ambientBubbleField';
 import { findFreeComposerPosition } from '../freeComposerPosition';
 import { createSpaceCamera } from '../spaceCamera';
 import type { SpatialFieldInput } from '../spatialField';
@@ -88,14 +89,28 @@ export function ThoughtSpace({
         host.appendChild(canvas);
         canvas.setAttribute('aria-label', 'Interactive space of thought bubbles');
 
+        const ambientField = new AmbientBubbleField();
         const layer = new Container();
-        app.stage.addChild(layer);
+        app.stage.addChild(ambientField, layer);
 
         renderSpace = () => {
           const current = stateRef.current;
           const cameraState = camera.read();
+          ambientField.position.set(cameraState.x, cameraState.y);
+          ambientField.scale.set(cameraState.zoom);
           layer.position.set(cameraState.x, cameraState.y);
           layer.scale.set(cameraState.zoom);
+          const topLeft = camera.screenToWorld({ x: 0, y: 0 });
+          const bottomRight = camera.screenToWorld({
+            x: app.screen.width,
+            y: app.screen.height,
+          });
+          ambientField.update({
+            left: topLeft.x,
+            right: bottomRight.x,
+            top: topLeft.y,
+            bottom: bottomRight.y,
+          });
           layer.removeChildren().forEach((child) => child.destroy({ children: true }));
 
           const positions = new Map(
