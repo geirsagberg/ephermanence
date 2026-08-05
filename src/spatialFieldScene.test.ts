@@ -14,6 +14,7 @@ function snapshot(
   return {
     state,
     selectedId: null,
+    grabbedThoughtId: null,
     attachmentCandidateIds,
     isDragging: false,
     camera: { x: 0, y: 0, zoom: 1 },
@@ -150,7 +151,7 @@ describe('spatial field scene', () => {
     expect(renderedThought.x).toBe(40);
   });
 
-  it('reuses a Thought display object when its attachment halo changes', () => {
+  it('reuses a Thought display object while drawing its contact outline behind it', () => {
     const scene = new SpatialFieldScene();
     const thought = {
       id: 'candidate',
@@ -169,7 +170,8 @@ describe('spatial field scene', () => {
     );
 
     expect(thoughts(scene).children[0]).toBe(renderedThought);
-    expect(renderedThought.children[0].visible).toBe(true);
+    expect(clusterOutline(scene).bounds.minX).toBe(-82);
+    expect(clusterOutline(scene).bounds.maxX).toBe(82);
   });
 
   it('reserves texture space for the full filtered Thought shadow', () => {
@@ -184,7 +186,7 @@ describe('spatial field scene', () => {
     };
     scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
 
-    const cachedVisual = thoughts(scene).children[0].children[1] as Container;
+    const cachedVisual = thoughts(scene).children[0].children[0] as Container;
     const cachePadding = cachedVisual.children[0] as Graphics;
 
     expect(cachedVisual.children).toHaveLength(3);
@@ -220,7 +222,7 @@ describe('spatial field scene', () => {
       snapshot({ thoughts: [first, second], attachments: [['first', 'second']] }),
       viewport,
     );
-    const cachedVisual = thoughts(scene).children[0].children[1] as Container;
+    const cachedVisual = thoughts(scene).children[0].children[0] as Container;
     expect(cachedVisual.y).toBe(0);
     expect(filters[0]).toMatchObject({ offsetY: 5, alpha: 0.1, blur: 8 });
 
@@ -234,6 +236,48 @@ describe('spatial field scene', () => {
 
     expect(cachedVisual.y).toBe(-2);
     expect(filters[0]).toMatchObject({ offsetY: 10, alpha: 0.18, blur: 11 });
+  });
+
+  it('raises a bonded Thought while it is grabbed independently', () => {
+    const filters: Array<{
+      padding: number;
+      offsetX: number;
+      offsetY: number;
+      alpha: number;
+      blur: number;
+    }> = [];
+    const scene = new SpatialFieldScene(undefined, () => {
+      const filter = { padding: 46, offsetX: 0, offsetY: 0, alpha: 0, blur: 0 };
+      filters.push(filter);
+      return filter as never;
+    });
+    const first = {
+      id: 'first',
+      text: 'First',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    const second = { ...first, id: 'second', text: 'Second', x: 100 };
+    const state = {
+      thoughts: [first, second],
+      attachments: [['first', 'second']] as [string, string][],
+    };
+    scene.render(snapshot(state), viewport);
+    const cachedVisual = thoughts(scene).children[0].children[0] as Container;
+
+    scene.render({ ...snapshot(state), grabbedThoughtId: 'first' }, viewport);
+    scene.advanceAnimations(220);
+
+    expect(cachedVisual.y).toBe(-2);
+    expect(filters[0]).toMatchObject({ offsetY: 10, alpha: 0.18, blur: 11 });
+
+    scene.render(snapshot(state), viewport);
+    scene.advanceAnimations(220);
+
+    expect(cachedVisual.y).toBe(0);
+    expect(filters[0]).toMatchObject({ offsetY: 5, alpha: 0.1, blur: 8 });
   });
 
   it('reuses a Bond display object while its endpoint moves', () => {

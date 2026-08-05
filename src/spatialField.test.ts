@@ -105,6 +105,22 @@ describe('spatial field transitions', () => {
     expect(snapshot.attachmentCandidateIds).toEqual([]);
   });
 
+  it('exposes a singular grab before movement and clears it on release', () => {
+    const spatialField = field(
+      [thought('grabbed', 100), thought('joined', 200)],
+      [['grabbed', 'joined']],
+    );
+
+    startDrag(spatialField, 'grabbed', { x: 0, y: 0 }, true);
+
+    expect(spatialField.read().grabbedThoughtId).toBe('grabbed');
+    expect(spatialField.read().isDragging).toBe(false);
+
+    spatialField.dispatch({ type: 'pointer-up' });
+
+    expect(spatialField.read().grabbedThoughtId).toBeNull();
+  });
+
   it('immediately detaches a selected thought when its grab control is tapped', () => {
     const spatialField = field(
       [thought('selected', 100), thought('joined', 200), thought('other', 300)],
@@ -195,6 +211,7 @@ describe('spatial field transitions', () => {
         attachments: [['keep', 'other']],
       },
       selectedId: null,
+      grabbedThoughtId: null,
       attachmentCandidateIds: [],
       isDragging: false,
     });

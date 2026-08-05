@@ -20,6 +20,7 @@ export type SpatialFieldInput =
 export type SpatialFieldSnapshot = {
   state: SpaceState;
   selectedId: string | null;
+  grabbedThoughtId: string | null;
   attachmentCandidateIds: string[];
   isDragging: boolean;
 };
@@ -47,6 +48,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
   let snapshot: SpatialFieldSnapshot = {
     state,
     selectedId,
+    grabbedThoughtId: null,
     attachmentCandidateIds,
     isDragging: false,
   };
@@ -195,12 +197,14 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
       if (
         state !== snapshot.state ||
         selectedId !== snapshot.selectedId ||
+        (drag?.singular ? drag.activeId : null) !== snapshot.grabbedThoughtId ||
         attachmentCandidateIds !== snapshot.attachmentCandidateIds ||
         Boolean(drag?.started) !== snapshot.isDragging
       ) {
         snapshot = {
           state,
           selectedId,
+          grabbedThoughtId: drag?.singular ? drag.activeId : null,
           attachmentCandidateIds,
           isDragging: Boolean(drag?.started),
         };

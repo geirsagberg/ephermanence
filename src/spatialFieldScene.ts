@@ -46,7 +46,6 @@ type ThoughtShadowFilterFactory = (elevation: number) => DropShadowFilter;
 type ActiveBond = { graphic: Graphics; geometry: BondGeometry };
 type ThoughtBubbleRecord = {
   bubble: Container;
-  attachmentHalo: Graphics;
   cachedVisual: Container;
   shadowFilter?: DropShadowFilter;
   elevation: number;
@@ -90,7 +89,8 @@ export class SpatialFieldScene extends Container {
     settings: AmbientBubbleSettings = defaultAmbientBubbleSettings,
     hiddenThoughtId?: string,
   ) {
-    const { camera, state, selectedId, attachmentCandidateIds } = snapshot;
+    const { camera, state, selectedId, grabbedThoughtId, attachmentCandidateIds } =
+      snapshot;
     this.ambient.position.set(camera.x, camera.y);
     this.ambient.scale.set(camera.zoom);
     this.bondFades.position.set(camera.x, camera.y);
@@ -98,7 +98,7 @@ export class SpatialFieldScene extends Container {
     this.foreground.position.set(camera.x, camera.y);
     this.foreground.scale.set(camera.zoom);
     this.ambient.update(bounds, settings);
-    this.drawClusterOutline(state, selectedId);
+    this.drawInteractionOutline(state, selectedId, attachmentCandidateIds);
     this.bonds.removeChildren();
     this.thoughts.removeChildren();
 
@@ -143,8 +143,8 @@ export class SpatialFieldScene extends Container {
     for (const thought of state.thoughts) {
       if (thought.id === hiddenThoughtId) continue;
       nextThoughtIds.add(thought.id);
-      const attachmentCandidate = attachmentCandidateIds.includes(thought.id);
-      const targetElevation = bondedThoughtIds.has(thought.id) ? 0 : 1;
+      const targetElevation =
+        !bondedThoughtIds.has(thought.id) || grabbedThoughtId === thought.id ? 1 : 0;
       let record = this.thoughtBubbles.get(thought.id);
       if (!record || !sameThoughtVisual(record, thought)) {
         record?.bubble.destroy({ children: true });
@@ -167,7 +167,6 @@ export class SpatialFieldScene extends Container {
       record.targetElevation = targetElevation;
       record.bubble.position.set(thought.x, thought.y);
       record.bubble.cursor = 'grab';
-      record.attachmentHalo.visible = attachmentCandidate;
       this.thoughts.addChild(record.bubble);
     }
 
@@ -205,7 +204,8 @@ export class SpatialFieldScene extends Container {
               ),
         ),
       );
-      record.cachedVisual.y = -thoughtRise * record.elevation;
+      record.cachedVisual.y =
+        record.elevation === 0 ? 0 : -thoughtRise * record.elevation;
       if (record.shadowFilter) {
         applyThoughtElevation(record.shadowFilter, record.elevation);
         record.cachedVisual.updateCacheTexture();
@@ -213,17 +213,28 @@ export class SpatialFieldScene extends Container {
     }
   }
 
-  private drawClusterOutline(
+  private drawInteractionOutline(
     state: SpatialInteractionSnapshot['state'],
     selectedId: string | null,
+    attachmentCandidateIds: string[],
   ) {
     this.clusterOutline.clear();
-    if (!selectedId) return;
-    const clusterIds = connectedThoughtIds(selectedId, state.attachments);
-    if (clusterIds.size < 2) return;
+    const outlinedIds = new Set<string>();
+    if (selectedId) {
+      const clusterIds = connectedThoughtIds(selectedId, state.attachments);
+      if (clusterIds.size > 1) {
+        for (const id of clusterIds) outlinedIds.add(id);
+      }
+    } else {
+      for (const candidateId of attachmentCandidateIds) {
+        for (const id of connectedThoughtIds(candidateId, state.attachments)) {
+          outlinedIds.add(id);
+        }
+      }
+    }
 
     for (const thought of state.thoughts) {
-      if (!clusterIds.has(thought.id)) continue;
+      if (!outlinedIds.has(thought.id)) continue;
       this.clusterOutline
         .circle(thought.x, thought.y, thought.radius + 8)
         .fill({ color: 0x718c7d, alpha: 0.22 });
@@ -346,10 +357,6 @@ function createThoughtBubble(
     contains: (x: number, y: number) => x * x + y * y <= thought.radius * thought.radius,
   };
 
-  const attachmentHalo = new Graphics()
-    .circle(0, 0, thought.radius + 7)
-    .fill({ color: 0xf5fff9, alpha: 0.2 })
-    .stroke({ color: 0x718c7d, alpha: 0.68, width: 4 });
   const body = new Graphics()
     .circle(0, 0, thought.radius)
     .fill({ color: getThoughtTone(thought.tone).canvas, alpha: 0.96 })
@@ -388,7 +395,7 @@ function createThoughtBubble(
   }
   cachedVisual.addChild(body, label);
   cachedVisual.cacheAsTexture({ antialias: true });
-  bubble.addChild(attachmentHalo, cachedVisual);
+  bubble.addChild(cachedVisual);
   bubble.on('pointerdown', (event: FederatedPointerEvent) => {
     onPointerDown(
       thought.id,
@@ -398,7 +405,7 @@ function createThoughtBubble(
     );
     bubble.cursor = 'grabbing';
   });
-  return { bubble, attachmentHalo, cachedVisual, shadowFilter };
+  return { bubble, cachedVisual, shadowFilter };
 }
 
 function createThoughtShadowFilter(elevation: number) {

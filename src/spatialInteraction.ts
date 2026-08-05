@@ -277,6 +277,7 @@ function combineSnapshot(
     previous &&
     previous.state === fieldSnapshot.state &&
     previous.selectedId === fieldSnapshot.selectedId &&
+    previous.grabbedThoughtId === fieldSnapshot.grabbedThoughtId &&
     previous.attachmentCandidateIds === fieldSnapshot.attachmentCandidateIds &&
     previous.isDragging === fieldSnapshot.isDragging &&
     previous.camera === camera
