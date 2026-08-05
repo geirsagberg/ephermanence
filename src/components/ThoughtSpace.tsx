@@ -85,7 +85,7 @@ export function ThoughtSpace({
         antialias: true,
         backgroundAlpha: 0,
         resizeTo: host,
-        resolution: 1,
+        resolution: window.devicePixelRatio,
         autoDensity: true,
       })
       .then(() => {
@@ -177,6 +177,7 @@ export function ThoughtSpace({
 
             const label = new Text({
               text: thought.text,
+              autoGenerateMipmaps: true,
               style: new TextStyle({
                 fontFamily: 'Iowan Old Style, Baskerville, Georgia, serif',
                 fontSize: thought.text.length > 48 ? 16 : 17,
@@ -188,7 +189,6 @@ export function ThoughtSpace({
               }),
             });
             label.anchor.set(0.5);
-            label.resolution = 2;
             if (attachmentHalo) bubble.addChild(attachmentHalo);
             bubble.addChild(shadow, body, label);
 

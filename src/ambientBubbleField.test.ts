@@ -8,7 +8,7 @@ describe('ambient bubble field', () => {
   it('defaults to the accepted subtle background', () => {
     expect(defaultAmbientBubbleSettings).toEqual({
       size: 0.7,
-      presence: 0.3,
+      presence: 0.5,
       density: 3,
     });
   });
