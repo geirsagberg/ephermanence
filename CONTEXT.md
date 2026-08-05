@@ -12,6 +12,11 @@ The open canvas in which thoughts are placed, moved, and encountered.
 A short piece of captured writing with a position and visual presence in the spatial
 field.
 
+**Thought authoring**:
+The in-place activity of creating a Thought or revising an existing Thought, from
+opening a draft until it is kept or cancelled.
+_Avoid_: Capture flow, composer flow
+
 **Bond**:
 A visible relationship between two thoughts formed by bringing them into contact.
 

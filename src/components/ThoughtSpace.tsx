@@ -7,13 +7,13 @@ import {
   defaultAmbientBubbleSettings,
   type AmbientBubbleSettings,
 } from '../ambientBubbleField';
-import { findFreeComposerPosition } from '../freeComposerPosition';
 import type {
   SpatialInteraction,
   SpatialInteractionInput,
   SpatialInteractionSnapshot,
   SpatialInteractionTransition,
 } from '../spatialInteraction';
+import type { ThoughtAuthoring } from '../thoughtAuthoring';
 import { ThoughtLauncher } from './ThoughtLauncher';
 
 const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
@@ -22,6 +22,7 @@ type ThoughtSpaceProps = {
   interaction: SpatialInteraction;
   snapshot: SpatialInteractionSnapshot;
   onInput: (input: SpatialInteractionInput) => SpatialInteractionTransition;
+  findFreePosition: ThoughtAuthoring['findFreePosition'];
   composerOpen?: boolean;
   ambientBubbleSettings?: AmbientBubbleSettings;
   className?: string;
@@ -31,6 +32,7 @@ export function ThoughtSpace({
   interaction,
   snapshot,
   onInput,
+  findFreePosition,
   composerOpen = false,
   ambientBubbleSettings = defaultAmbientBubbleSettings,
   className = '',
@@ -416,7 +418,7 @@ export function ThoughtSpace({
         getTapPosition={() => {
           const current = interaction.read();
           const currentZoom = current.camera.zoom;
-          return findFreeComposerPosition({
+          return findFreePosition({
             thoughts: current.state.thoughts.map((thought) => ({
               ...interaction.worldToScreen(thought),
               radius: thought.radius * currentZoom,

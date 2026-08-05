@@ -8,18 +8,15 @@ import {
   ambientBubblePresets,
   AmbientBubbleTuner,
 } from './components/AmbientBubbleTuner';
-import {
-  SpatialThoughtComposer,
-  type DraftPosition,
-} from './components/SpatialThoughtComposer';
+import { SpatialThoughtComposer } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { spaceForQuery } from './initialSpace';
 import {
   createSpatialInteraction,
-  type SpatialInteractionEffect,
   type SpatialInteractionInput,
 } from './spatialInteraction';
 import type { SpaceStorage } from './spaceStorage';
+import { createThoughtAuthoring, type ThoughtAuthoringInput } from './thoughtAuthoring';
 
 function Wordmark() {
   return (
@@ -45,52 +42,49 @@ export function App() {
     return createSpatialInteraction(spaceForQuery(window.location.search), storage);
   });
   const [interactionSnapshot, setInteractionSnapshot] = useState(interaction.read);
-  const [draftPosition, setDraftPosition] = useState<DraftPosition | null>(null);
-  const [draftWorldPosition, setDraftWorldPosition] = useState<DraftPosition | null>(
-    null,
-  );
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [authoring] = useState(createThoughtAuthoring);
+  const [authoringState, setAuthoringState] = useState(authoring.read);
   const [ambientBubbleSettings, setAmbientBubbleSettings] =
     useState<AmbientBubbleSettings>(() => readAmbientBubbleSettings());
-  const state = interactionSnapshot.state;
-
   const sendToField = useCallback(
     (input: SpatialInteractionInput) => {
       const transition = interaction.dispatch(input);
       setInteractionSnapshot(transition.snapshot);
-      applyEffects(transition.effects, {
-        openCreate(screenPosition, worldPosition) {
-          setDraftPosition(screenPosition);
-          setDraftWorldPosition(worldPosition);
-          setEditingId(null);
-        },
-        openEdit(thought, position) {
-          setDraftPosition(position);
-          setDraftWorldPosition(null);
-          setEditingId(thought.id);
-        },
-        closeComposer() {
-          setDraftPosition(null);
-          setDraftWorldPosition(null);
-          setEditingId(null);
-        },
-      });
+      for (const effect of transition.effects) {
+        switch (effect.type) {
+          case 'request-create':
+            authoring.dispatch({
+              type: 'open-create',
+              screenPosition: effect.screenPosition,
+              worldPosition: effect.worldPosition,
+            });
+            break;
+          case 'request-edit':
+            authoring.dispatch({
+              type: 'open-edit',
+              thought: effect.thought,
+              screenPosition: effect.screenPosition,
+            });
+            break;
+          case 'empty-activated':
+            authoring.dispatch({ type: 'cancel' });
+            break;
+        }
+      }
+      setAuthoringState(authoring.read());
       return transition;
     },
-    [interaction],
+    [authoring, interaction],
   );
 
-  const createThought = (text: string, position: DraftPosition) => {
-    sendToField({
-      type: 'create-thought',
-      id: `thought-${Date.now()}`,
-      text,
-      position,
-    });
-    setDraftPosition(null);
-    setDraftWorldPosition(null);
-    setEditingId(null);
-  };
+  const sendToAuthoring = useCallback(
+    (input: ThoughtAuthoringInput) => {
+      const commands = authoring.dispatch(input);
+      setAuthoringState(authoring.read());
+      for (const command of commands) sendToField(command);
+    },
+    [authoring, sendToField],
+  );
 
   return (
     <>
@@ -102,8 +96,9 @@ export function App() {
           interaction={interaction}
           snapshot={interactionSnapshot}
           onInput={sendToField}
+          findFreePosition={authoring.findFreePosition}
           ambientBubbleSettings={ambientBubbleSettings}
-          composerOpen={draftPosition !== null}
+          composerOpen={authoringState.mode !== 'idle'}
         />
       </main>
       {tuningAmbientBubbles && (
@@ -115,31 +110,16 @@ export function App() {
           }}
         />
       )}
-      {draftPosition && (
+      {authoringState.mode !== 'idle' && (
         <SpatialThoughtComposer
-          key={editingId ?? 'new'}
-          position={draftPosition}
+          key={authoringState.mode === 'editing' ? authoringState.id : 'new'}
+          position={authoringState.screenPosition}
           initialText={
-            editingId
-              ? state.thoughts.find((thought) => thought.id === editingId)?.text
-              : undefined
+            authoringState.mode === 'editing' ? authoringState.initialText : undefined
           }
-          label={editingId ? 'Edit thought' : undefined}
-          onCancel={() => {
-            setDraftPosition(null);
-            setDraftWorldPosition(null);
-            setEditingId(null);
-          }}
-          onCreate={(text) => {
-            if (!editingId) {
-              createThought(text, draftWorldPosition ?? draftPosition);
-              return;
-            }
-            sendToField({ type: 'edit-thought', id: editingId, text });
-            setDraftPosition(null);
-            setDraftWorldPosition(null);
-            setEditingId(null);
-          }}
+          label={authoringState.mode === 'editing' ? 'Edit thought' : undefined}
+          onCancel={() => sendToAuthoring({ type: 'cancel' })}
+          onKeep={(text) => sendToAuthoring({ type: 'keep', text })}
         />
       )}
     </>
@@ -176,26 +156,4 @@ function writeAmbientBubbleSettings(
 function readNumber(query: URLSearchParams, key: string, fallback: number) {
   const value = Number(query.get(key));
   return Number.isFinite(value) && query.has(key) ? value : fallback;
-}
-
-type EffectHandlers = {
-  openCreate: (screenPosition: DraftPosition, worldPosition: DraftPosition) => void;
-  openEdit: (thought: { id: string }, position: DraftPosition) => void;
-  closeComposer: () => void;
-};
-
-function applyEffects(effects: SpatialInteractionEffect[], handlers: EffectHandlers) {
-  for (const effect of effects) {
-    switch (effect.type) {
-      case 'request-create':
-        handlers.openCreate(effect.screenPosition, effect.worldPosition);
-        break;
-      case 'request-edit':
-        handlers.openEdit(effect.thought, effect.screenPosition);
-        break;
-      case 'empty-activated':
-        handlers.closeComposer();
-        break;
-    }
-  }
 }

@@ -7,7 +7,7 @@ type SpatialThoughtComposerProps = {
   initialText?: string;
   label?: string;
   onCancel: () => void;
-  onCreate: (text: string) => void;
+  onKeep: (text: string) => void;
 };
 
 export function SpatialThoughtComposer({
@@ -15,27 +15,27 @@ export function SpatialThoughtComposer({
   initialText = '',
   label = 'New thought at this position',
   onCancel,
-  onCreate,
+  onKeep,
 }: SpatialThoughtComposerProps) {
   const [text, setText] = useState(initialText);
   const formRef = useRef<HTMLFormElement>(null);
   const savedRef = useRef(false);
 
-  const create = useCallback(() => {
+  const keep = useCallback(() => {
     const next = text.trim();
     if (!next || savedRef.current) return;
     savedRef.current = true;
-    onCreate(next);
-  }, [onCreate, text]);
+    onKeep(next);
+  }, [onKeep, text]);
 
   useEffect(() => {
     const saveOnTapAway = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && !formRef.current?.contains(target)) create();
+      if (target instanceof Node && !formRef.current?.contains(target)) keep();
     };
     window.addEventListener('pointerdown', saveOnTapAway, true);
     return () => window.removeEventListener('pointerdown', saveOnTapAway, true);
-  }, [create]);
+  }, [keep]);
 
   return (
     <form
@@ -44,7 +44,7 @@ export function SpatialThoughtComposer({
       style={{ left: position.x, top: position.y }}
       onSubmit={(event) => {
         event.preventDefault();
-        create();
+        keep();
       }}
     >
       <textarea
@@ -59,7 +59,7 @@ export function SpatialThoughtComposer({
             !event.nativeEvent.isComposing
           ) {
             event.preventDefault();
-            create();
+            keep();
           }
         }}
         placeholder="A thought…"
