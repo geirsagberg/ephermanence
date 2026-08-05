@@ -208,7 +208,10 @@ function bringThoughtToFrontWhenAlone(
 }
 
 function thoughtRadius(text: string) {
-  return Math.max(74, Math.min(96, 70 + text.length * 0.35));
+  const min = 74;
+  const max = 128;
+  const radius = 70 + text.length * 0.35;
+  return Math.max(min, Math.min(max, radius));
 }
 
 function connectedThoughtIds(id: string, attachments: Attachment[]) {
