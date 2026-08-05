@@ -2,7 +2,11 @@ import { Grip, Pencil, X } from 'lucide-react';
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
-import { AmbientBubbleField } from '../ambientBubbleField';
+import {
+  AmbientBubbleField,
+  defaultAmbientBubbleSettings,
+  type AmbientBubbleSettings,
+} from '../ambientBubbleField';
 import { findFreeComposerPosition } from '../freeComposerPosition';
 import { createSpaceCamera } from '../spaceCamera';
 import type { SpatialFieldInput } from '../spatialField';
@@ -23,6 +27,7 @@ type ThoughtSpaceProps = {
   onEditRequest?: (thought: Thought, position: { x: number; y: number }) => void;
   onEmptyClick?: () => void;
   composerOpen?: boolean;
+  ambientBubbleSettings?: AmbientBubbleSettings;
   className?: string;
 };
 
@@ -35,6 +40,7 @@ export function ThoughtSpace({
   onEditRequest,
   onEmptyClick,
   composerOpen = false,
+  ambientBubbleSettings = defaultAmbientBubbleSettings,
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -45,6 +51,7 @@ export function ThoughtSpace({
   const onCreateRequestRef = useRef(onCreateRequest);
   const onEditRequestRef = useRef(onEditRequest);
   const onEmptyClickRef = useRef(onEmptyClick);
+  const ambientBubbleSettingsRef = useRef(ambientBubbleSettings);
 
   stateRef.current = state;
   attachmentCandidateIdsRef.current = new Set(attachmentCandidateIds);
@@ -52,6 +59,7 @@ export function ThoughtSpace({
   onCreateRequestRef.current = onCreateRequest;
   onEditRequestRef.current = onEditRequest;
   onEmptyClickRef.current = onEmptyClick;
+  ambientBubbleSettingsRef.current = ambientBubbleSettings;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -105,12 +113,15 @@ export function ThoughtSpace({
             x: app.screen.width,
             y: app.screen.height,
           });
-          ambientField.update({
-            left: topLeft.x,
-            right: bottomRight.x,
-            top: topLeft.y,
-            bottom: bottomRight.y,
-          });
+          ambientField.update(
+            {
+              left: topLeft.x,
+              right: bottomRight.x,
+              top: topLeft.y,
+              bottom: bottomRight.y,
+            },
+            ambientBubbleSettingsRef.current,
+          );
           layer.removeChildren().forEach((child) => child.destroy({ children: true }));
 
           const positions = new Map(
@@ -425,7 +436,7 @@ export function ThoughtSpace({
   useEffect(() => {
     const canvas = hostRef.current?.querySelector('canvas');
     if (canvas) window.dispatchEvent(new Event('resize'));
-  }, [state, attachmentCandidateIds]);
+  }, [state, attachmentCandidateIds, ambientBubbleSettings]);
 
   const selectedThought = state.thoughts.find((thought) => thought.id === selectedId);
   const host = hostRef.current;
@@ -451,7 +462,7 @@ export function ThoughtSpace({
             }}
             aria-label={`Edit thought: ${selectedThought.text}`}
           >
-            <Pencil size={14} strokeWidth={1.8} aria-hidden="true" />
+            <Pencil size={20} strokeWidth={1} aria-hidden="true" />
           </button>
           <button
             title="Delete thought"
@@ -467,7 +478,7 @@ export function ThoughtSpace({
             }}
             aria-label={`Delete thought: ${selectedThought.text}`}
           >
-            <X size={16} strokeWidth={1.8} aria-hidden="true" />
+            <X size={20} strokeWidth={1} aria-hidden="true" />
           </button>
           <button
             title="Move thought independently"
@@ -495,7 +506,7 @@ export function ThoughtSpace({
             }}
             aria-label={`Move thought independently: ${selectedThought.text}`}
           >
-            <Grip size={14} strokeWidth={1.8} aria-hidden="true" />
+            <Grip size={20} strokeWidth={1} aria-hidden="true" />
           </button>
         </>
       )}

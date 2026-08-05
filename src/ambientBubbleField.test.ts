@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { AmbientBubbleField } from './ambientBubbleField';
+import { AmbientBubbleField, defaultAmbientBubbleSettings } from './ambientBubbleField';
 
 const viewport = { left: -195, right: 195, top: -422, bottom: 422 };
 
 describe('ambient bubble field', () => {
+  it('defaults to the accepted subtle background', () => {
+    expect(defaultAmbientBubbleSettings).toEqual({
+      size: 0.7,
+      presence: 0.3,
+      density: 3,
+    });
+  });
+
   it('reuses cached chunks while the visible world is unchanged', () => {
     const field = new AmbientBubbleField();
     field.update(viewport);
@@ -33,5 +41,16 @@ describe('ambient bubble field', () => {
     field.update({ left: -650, right: 650, top: -1_407, bottom: 1_407 });
 
     expect(field.children.length).toBeGreaterThan(defaultCount);
+  });
+
+  it('rebuilds cached chunks when the appearance changes', () => {
+    const field = new AmbientBubbleField();
+    field.update(viewport);
+    const previousChunks = new Set(field.children);
+
+    field.update(viewport, { size: 0.7, presence: 0.45, density: 2 });
+
+    expect(field.children.every((chunk) => !previousChunks.has(chunk))).toBe(true);
+    expect(field.children.every((chunk) => chunk.children.length === 2)).toBe(true);
   });
 });

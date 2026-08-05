@@ -34,9 +34,87 @@ button {
 }
 
 button:focus-visible,
+input:focus-visible,
 textarea:focus-visible {
   outline: 2px solid #5e6f65;
   outline-offset: 3px;
+}
+
+.ambient-tuner {
+  position: fixed;
+  z-index: 20;
+  top: 18px;
+  right: 18px;
+  width: min(244px, calc(100vw - 36px));
+  padding: 14px;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 18px;
+  background: rgb(245 243 236 / 88%);
+  box-shadow: 0 12px 32px rgb(51 59 54 / 15%);
+  backdrop-filter: blur(18px);
+}
+
+.ambient-tuner__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: #36423c;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.ambient-tuner__heading small {
+  color: rgb(54 66 60 / 48%);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.ambient-tuner__presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.ambient-tuner__presets button {
+  padding: 6px 4px;
+  border: 1px solid rgb(54 66 60 / 12%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 42%);
+  color: rgb(54 66 60 / 65%);
+  font-size: 10px;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.ambient-tuner__presets button.is-active {
+  border-color: rgb(72 94 82 / 38%);
+  background: rgb(218 229 222 / 80%);
+  color: #35473e;
+}
+
+.ambient-tuner__slider {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 5px 8px;
+  align-items: center;
+  margin-top: 9px;
+  color: rgb(54 66 60 / 72%);
+  font-size: 10px;
+}
+
+.ambient-tuner__slider output {
+  color: #36423c;
+  font-variant-numeric: tabular-nums;
+}
+
+.ambient-tuner__slider input {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: #718c7d;
 }
 
 .app-shell {
@@ -69,8 +147,8 @@ textarea:focus-visible {
   position: absolute;
   z-index: 6;
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   padding: 0;
   border: 1px solid rgb(39 48 44 / 18%);
@@ -306,6 +384,10 @@ textarea:focus-visible {
   .app-guidance {
     bottom: 62px;
     left: 18px;
+  }
+
+  .ambient-tuner {
+    top: 56px;
   }
 }
 

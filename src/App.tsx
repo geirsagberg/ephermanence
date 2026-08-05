@@ -1,6 +1,14 @@
 import { useCallback, useState } from 'react';
 
 import {
+  defaultAmbientBubbleSettings,
+  type AmbientBubbleSettings,
+} from './ambientBubbleField';
+import {
+  ambientBubblePresets,
+  AmbientBubbleTuner,
+} from './components/AmbientBubbleTuner';
+import {
   SpatialThoughtComposer,
   type DraftPosition,
 } from './components/SpatialThoughtComposer';
@@ -19,8 +27,10 @@ function Wordmark() {
 }
 
 export function App() {
+  const tuningAmbientBubbles = new URLSearchParams(window.location.search).has('tune');
   const [storage] = useState<SpaceStorage | null>(() => {
-    if (new URLSearchParams(window.location.search).has('debug')) return null;
+    const query = new URLSearchParams(window.location.search);
+    if (query.has('debug')) return null;
     try {
       return window.localStorage;
     } catch {
@@ -38,6 +48,8 @@ export function App() {
     null,
   );
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [ambientBubbleSettings, setAmbientBubbleSettings] =
+    useState<AmbientBubbleSettings>(() => readAmbientBubbleSettings());
   const state = fieldSnapshot.state;
 
   const sendToField = useCallback(
@@ -72,6 +84,7 @@ export function App() {
           selectedId={fieldSnapshot.selectedId}
           attachmentCandidateIds={fieldSnapshot.attachmentCandidateIds}
           onInput={sendToField}
+          ambientBubbleSettings={ambientBubbleSettings}
           composerOpen={draftPosition !== null}
           onCreateRequest={(screenPosition, worldPosition) => {
             setDraftPosition(screenPosition);
@@ -90,6 +103,15 @@ export function App() {
           }}
         />
       </main>
+      {tuningAmbientBubbles && (
+        <AmbientBubbleTuner
+          settings={ambientBubbleSettings}
+          onChange={(settings, preset) => {
+            setAmbientBubbleSettings(settings);
+            writeAmbientBubbleSettings(settings, preset);
+          }}
+        />
+      )}
       {draftPosition && (
         <SpatialThoughtComposer
           key={editingId ?? 'new'}
@@ -119,6 +141,38 @@ export function App() {
       )}
     </>
   );
+}
+
+function readAmbientBubbleSettings(): AmbientBubbleSettings {
+  const query = new URLSearchParams(window.location.search);
+  if (!query.has('tune')) return defaultAmbientBubbleSettings;
+  const preset = query.get('variant');
+  if (preset && preset in ambientBubblePresets) {
+    return ambientBubblePresets[preset as keyof typeof ambientBubblePresets];
+  }
+  return {
+    size: readNumber(query, 'size', ambientBubblePresets.haze.size),
+    presence: readNumber(query, 'presence', ambientBubblePresets.haze.presence),
+    density: readNumber(query, 'density', ambientBubblePresets.haze.density),
+  };
+}
+
+function writeAmbientBubbleSettings(
+  settings: AmbientBubbleSettings,
+  preset?: keyof typeof ambientBubblePresets,
+) {
+  const url = new URL(window.location.href);
+  if (preset) url.searchParams.set('variant', preset);
+  else url.searchParams.delete('variant');
+  url.searchParams.set('size', String(settings.size));
+  url.searchParams.set('presence', String(settings.presence));
+  url.searchParams.set('density', String(settings.density));
+  window.history.replaceState(null, '', url);
+}
+
+function readNumber(query: URLSearchParams, key: string, fallback: number) {
+  const value = Number(query.get(key));
+  return Number.isFinite(value) && query.has(key) ? value : fallback;
 }
 
 function shouldPersist(input: SpatialFieldInput) {
