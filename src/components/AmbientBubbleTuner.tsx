@@ -2,6 +2,7 @@ import {
   defaultAmbientBubbleSettings,
   type AmbientBubbleSettings,
 } from '../spatialFieldScene';
+import { css, cx } from '../../styled-system/css';
 
 export const ambientBubblePresets = {
   whisper: { size: 0.6, presence: 0.3, density: 1 },
@@ -22,17 +23,20 @@ export function AmbientBubbleTuner({ settings, onChange }: AmbientBubbleTunerPro
   )?.[0] as PresetName | undefined;
 
   return (
-    <aside className="ambient-tuner" aria-label="Background bubble tuner">
-      <div className="ambient-tuner__heading">
+    <aside className={tunerClass} aria-label="Background bubble tuner">
+      <div className={headingClass}>
         <span>Background bubbles</span>
         <small>Hidden controls</small>
       </div>
-      <div className="ambient-tuner__presets" aria-label="Bubble presets">
+      <div className={presetsClass} aria-label="Bubble presets">
         {(Object.keys(ambientBubblePresets) as PresetName[]).map((name) => (
           <button
             key={name}
             type="button"
-            className={activePreset === name ? 'is-active' : ''}
+            className={cx(
+              presetButtonClass,
+              activePreset === name ? activePresetButtonClass : undefined,
+            )}
             aria-pressed={activePreset === name}
             onClick={() => onChange(ambientBubblePresets[name], name)}
           >
@@ -91,7 +95,7 @@ function TunerSlider({
   onChange,
 }: TunerSliderProps) {
   return (
-    <label className="ambient-tuner__slider">
+    <label className={sliderClass}>
       <span>{label}</span>
       <output>{output}</output>
       <input
@@ -106,6 +110,83 @@ function TunerSlider({
     </label>
   );
 }
+
+const tunerClass = css({
+  position: 'fixed',
+  zIndex: 20,
+  top: '18px',
+  right: '18px',
+  width: 'min(244px, calc(100vw - 36px))',
+  padding: '14px',
+  border: '1px solid rgb(255 255 255 / 72%)',
+  borderRadius: '18px',
+  background: 'rgb(245 243 236 / 88%)',
+  boxShadow: '0 12px 32px rgb(51 59 54 / 15%)',
+  backdropFilter: 'blur(18px)',
+  '@media (max-width: 720px)': {
+    top: '56px',
+  },
+});
+
+const headingClass = css({
+  display: 'flex',
+  alignItems: 'baseline',
+  justifyContent: 'space-between',
+  marginBottom: '10px',
+  color: '#36423c',
+  fontSize: '12px',
+  fontWeight: 500,
+  '& small': {
+    color: 'rgb(54 66 60 / 48%)',
+    fontSize: '9px',
+    fontWeight: 500,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+  },
+});
+
+const presetsClass = css({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(3, 1fr)',
+  gap: '5px',
+  marginBottom: '12px',
+});
+
+const presetButtonClass = css({
+  padding: '6px 4px',
+  border: '1px solid rgb(54 66 60 / 12%)',
+  borderRadius: '999px',
+  background: 'rgb(255 255 255 / 42%)',
+  color: 'rgb(54 66 60 / 65%)',
+  fontSize: '10px',
+  textTransform: 'capitalize',
+  cursor: 'pointer',
+});
+
+const activePresetButtonClass = css({
+  borderColor: 'rgb(72 94 82 / 38%)',
+  background: 'rgb(218 229 222 / 80%)',
+  color: '#35473e',
+});
+
+const sliderClass = css({
+  display: 'grid',
+  gridTemplateColumns: '1fr auto',
+  gap: '5px 8px',
+  alignItems: 'center',
+  marginTop: '9px',
+  color: 'rgb(54 66 60 / 72%)',
+  fontSize: '10px',
+  '& output': {
+    color: '#36423c',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  '& input': {
+    gridColumn: '1 / -1',
+    width: '100%',
+    accentColor: '#718c7d',
+  },
+});
 
 function sameSettings(left: AmbientBubbleSettings, right: AmbientBubbleSettings) {
   return (

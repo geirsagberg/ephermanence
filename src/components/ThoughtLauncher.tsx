@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { css } from '../../styled-system/css';
 
 type Position = { x: number; y: number };
 
@@ -44,7 +45,7 @@ export function ThoughtLauncher({
 
   return (
     <div
-      className="thought-launcher"
+      className={launcherClass}
       style={
         { '--thought-tone': toneColor } as CSSProperties &
           Record<'--thought-tone', string>
@@ -53,7 +54,7 @@ export function ThoughtLauncher({
       {!launch && (
         <button
           ref={buttonRef}
-          className="thought-launcher__bubble"
+          className={launcherBubbleClass}
           style={
             dragPosition
               ? {
@@ -107,7 +108,7 @@ export function ThoughtLauncher({
       )}
       {launch && (
         <span
-          className="thought-launcher__seed"
+          className={launcherSeedClass}
           style={
             {
               left: launch.start.x,
@@ -127,3 +128,52 @@ export function ThoughtLauncher({
     </div>
   );
 }
+
+const launcherClass = css({
+  position: 'fixed',
+  zIndex: 8,
+  inset: 0,
+  pointerEvents: 'none',
+});
+
+const launcherBubbleClass = css({
+  position: 'fixed',
+  bottom: 'max(22px, env(safe-area-inset-bottom))',
+  left: '50%',
+  display: 'grid',
+  width: '58px',
+  height: '58px',
+  placeItems: 'center',
+  padding: '0 0 3px',
+  border: '1px solid rgb(255 255 255 / 72%)',
+  borderRadius: '50%',
+  background:
+    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 58%), transparent 34%), var(--thought-tone)',
+  boxShadow: '0 10px 28px rgb(48 61 54 / 20%), inset 0 -4px 12px rgb(70 92 80 / 8%)',
+  color: '#43544b',
+  cursor: 'grab',
+  touchAction: 'none',
+  transform: 'translateX(-50%)',
+  transition:
+    'width 180ms ease, height 180ms ease, box-shadow 180ms ease, transform 180ms ease',
+  pointerEvents: 'auto',
+  WebkitTapHighlightColor: 'transparent',
+  _active: {
+    width: '66px',
+    height: '66px',
+    boxShadow: '0 14px 34px rgb(48 61 54 / 25%)',
+    cursor: 'grabbing',
+  },
+});
+
+const launcherSeedClass = css({
+  position: 'fixed',
+  width: '58px',
+  height: '58px',
+  border: '1px solid rgb(255 255 255 / 76%)',
+  borderRadius: '50%',
+  background:
+    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 62%), transparent 34%), var(--thought-tone)',
+  boxShadow: '0 10px 28px rgb(48 61 54 / 18%)',
+  animation: 'launchSeed 200ms ease-out both',
+});

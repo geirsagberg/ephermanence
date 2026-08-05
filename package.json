@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
-    "check": "vp check src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts",
-    "format": "vp fmt src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts --write",
+    "check": "vp check src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts panda.config.ts",
+    "format": "vp fmt src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts panda.config.ts --write",
+    "prepare": "panda codegen",
     "preview": "vp preview",
     "test": "vp test"
   },
@@ -19,9 +20,11 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@pandacss/dev": "^1.12.0",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "^6.0.4",
+    "postcss": "^8.5.25",
     "typescript": "latest",
     "vite-plus": "^0.2.6"
   }

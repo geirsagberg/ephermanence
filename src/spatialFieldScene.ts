@@ -168,9 +168,8 @@ export async function mountSpatialFieldScene(
     autoDensity: true,
   });
   const scene = new SpatialFieldScene(onThoughtPointerDown);
-  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const advanceBondFades = (ticker: Ticker) => {
-    scene.advanceBondFades(reducedMotion ? Number.POSITIVE_INFINITY : ticker.deltaMS);
+    scene.advanceBondFades(ticker.deltaMS);
   };
   app.ticker.add(advanceBondFades);
   app.stage.addChild(scene);

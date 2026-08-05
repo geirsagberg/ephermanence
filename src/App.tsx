@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { css } from '../styled-system/css';
 
 import {
   defaultAmbientBubbleSettings,
@@ -21,8 +22,8 @@ import { getThoughtTone } from './thoughtTone';
 
 function Wordmark() {
   return (
-    <div className="wordmark" aria-label="Ephermanence">
-      <span className="wordmark__orb" />
+    <div className={wordmarkClass} aria-label="Ephermanence">
+      <span className={wordmarkOrbClass} />
       <span>ephermanence</span>
     </div>
   );
@@ -90,8 +91,8 @@ export function App() {
 
   return (
     <>
-      <main className="app-shell">
-        <header className="app-header">
+      <main className={appShellClass}>
+        <header className={appHeaderClass}>
           <Wordmark />
         </header>
         <ThoughtSpace
@@ -131,6 +132,51 @@ export function App() {
     </>
   );
 }
+
+const appShellClass = css({
+  position: 'relative',
+  width: '100%',
+  height: '100%',
+  overflow: 'hidden',
+  background:
+    'radial-gradient(circle at 48% 43%, rgb(255 255 255 / 65%), transparent 42%), linear-gradient(135deg, #e8e7df, #f2efe7 55%, #e4e8e2)',
+});
+
+const appHeaderClass = css({
+  position: 'absolute',
+  zIndex: 3,
+  top: 0,
+  right: 0,
+  left: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '24px 30px',
+  pointerEvents: 'none',
+  '& > *': {
+    pointerEvents: 'auto',
+  },
+  '@media (max-width: 720px)': {
+    padding: '18px',
+  },
+});
+
+const wordmarkClass = css({
+  display: 'flex',
+  gap: '10px',
+  alignItems: 'center',
+  fontSize: '14px',
+  fontWeight: 500,
+  letterSpacing: '-0.01em',
+});
+
+const wordmarkOrbClass = css({
+  width: '17px',
+  height: '17px',
+  border: '1px solid rgb(39 48 44 / 55%)',
+  borderRadius: '50%',
+  boxShadow: 'inset 4px 4px 8px rgb(255 255 255 / 45%)',
+});
 
 function readAmbientBubbleSettings(): AmbientBubbleSettings {
   const query = new URLSearchParams(window.location.search);

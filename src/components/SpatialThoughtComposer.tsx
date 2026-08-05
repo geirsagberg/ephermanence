@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { css } from '../../styled-system/css';
 
 export type DraftPosition = { x: number; y: number };
 
@@ -52,7 +53,7 @@ export function SpatialThoughtComposer({
   return (
     <form
       ref={formRef}
-      className="spatial-composer"
+      className={composerClass}
       style={
         {
           left: position.x,
@@ -88,3 +89,36 @@ export function SpatialThoughtComposer({
     </form>
   );
 }
+
+const composerClass = css({
+  position: 'fixed',
+  zIndex: 10,
+  display: 'grid',
+  width: '210px',
+  height: '210px',
+  placeItems: 'center',
+  padding: '38px 28px 30px',
+  border: '1px solid rgb(255 255 255 / 70%)',
+  borderRadius: '50%',
+  background: 'color-mix(in srgb, var(--thought-tone) 96%, transparent)',
+  boxShadow: '4px 12px 32px rgb(62 67 61 / 14%)',
+  transform: 'translate(-50%, -50%)',
+  animation: 'composerBloom 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
+  '& textarea': {
+    width: '100%',
+    height: '90px',
+    padding: 0,
+    border: 0,
+    background: 'transparent',
+    color: '#26312d',
+    fontFamily: 'serif',
+    fontSize: '18px',
+    lineHeight: 1.18,
+    textAlign: 'center',
+    outline: 0,
+    resize: 'none',
+    '&::placeholder': {
+      color: 'rgb(38 49 45 / 38%)',
+    },
+  },
+});

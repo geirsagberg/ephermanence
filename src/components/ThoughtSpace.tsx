@@ -5,6 +5,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
+import { css, cx } from '../../styled-system/css';
 
 import {
   defaultAmbientBubbleSettings,
@@ -325,12 +326,12 @@ export function ThoughtSpace({
   };
 
   return (
-    <div ref={hostRef} className={`thought-space ${className}`}>
+    <div ref={hostRef} className={cx(thoughtSpaceClass, className)}>
       {selectedThought && selectedPosition && actionPositions && (
         <Fragment key={selectedThought.id}>
           <button
             title="Edit thought"
-            className="bubble-edit"
+            className={cx(actionButtonClass, directActionButtonClass)}
             style={actionStyle(selectedPosition, actionPositions.edit)}
             onPointerDown={armAction}
             onPointerUp={(event) => {
@@ -356,7 +357,7 @@ export function ThoughtSpace({
           </button>
           <button
             title="Delete thought"
-            className="bubble-delete"
+            className={cx(actionButtonClass, directActionButtonClass)}
             style={actionStyle(selectedPosition, actionPositions.delete)}
             onPointerDown={armAction}
             onPointerUp={(event) => {
@@ -376,7 +377,7 @@ export function ThoughtSpace({
           </button>
           <button
             title="Move thought independently"
-            className="bubble-grab"
+            className={cx(actionButtonClass, grabActionButtonClass)}
             style={actionStyle(selectedPosition, actionPositions.grab)}
             onPointerDown={(event) => {
               event.preventDefault();
@@ -412,6 +413,54 @@ export function ThoughtSpace({
     </div>
   );
 }
+
+const thoughtSpaceClass = css({
+  position: 'absolute',
+  inset: 0,
+  touchAction: 'none',
+  '& canvas': {
+    display: 'block',
+    width: '100%',
+    height: '100%',
+    cursor: 'grab',
+    WebkitTapHighlightColor: 'transparent',
+  },
+});
+
+const actionButtonClass = css({
+  position: 'absolute',
+  zIndex: 6,
+  display: 'grid',
+  placeItems: 'center',
+  padding: 0,
+  appearance: 'none',
+  border: '1px solid rgb(39 48 44 / 18%)',
+  borderRadius: '50%',
+  background: '#fff',
+  boxShadow: '0 5px 16px rgb(45 52 48 / 14%)',
+  color: 'rgb(39 48 44 / 72%)',
+  transform: 'translate(-50%, -50%)',
+  animation: 'bubbleActionEnter 160ms cubic-bezier(0.2, 0.82, 0.2, 1) both',
+  backdropFilter: 'blur(10px)',
+  WebkitTapHighlightColor: 'transparent',
+  _hover: {
+    color: '#28312d',
+  },
+  _focus: {
+    background: '#f1efe8',
+  },
+});
+
+const directActionButtonClass = css({
+  cursor: 'pointer',
+});
+
+const grabActionButtonClass = css({
+  cursor: 'grab',
+  _active: {
+    cursor: 'grabbing',
+  },
+});
 
 type ActionStyle = CSSProperties &
   Record<'--action-origin-x' | '--action-origin-y', string>;
