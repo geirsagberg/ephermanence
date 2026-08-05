@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type DraftPosition = { x: number; y: number };
 
@@ -6,7 +6,6 @@ type SpatialThoughtComposerProps = {
   position: DraftPosition;
   initialText?: string;
   label?: string;
-  prototypeVariant?: 'A' | 'B' | 'C';
   onCancel: () => void;
   onCreate: (text: string) => void;
 };
@@ -15,7 +14,6 @@ export function SpatialThoughtComposer({
   position,
   initialText = '',
   label = 'New thought at this position',
-  prototypeVariant,
   onCancel,
   onCreate,
 }: SpatialThoughtComposerProps) {
@@ -23,12 +21,12 @@ export function SpatialThoughtComposer({
   const formRef = useRef<HTMLFormElement>(null);
   const savedRef = useRef(false);
 
-  const create = () => {
+  const create = useCallback(() => {
     const next = text.trim();
     if (!next || savedRef.current) return;
     savedRef.current = true;
     onCreate(next);
-  };
+  }, [onCreate, text]);
 
   useEffect(() => {
     const saveOnTapAway = (event: PointerEvent) => {
@@ -37,12 +35,12 @@ export function SpatialThoughtComposer({
     };
     window.addEventListener('pointerdown', saveOnTapAway, true);
     return () => window.removeEventListener('pointerdown', saveOnTapAway, true);
-  });
+  }, [create]);
 
   return (
     <form
       ref={formRef}
-      className={`spatial-composer${prototypeVariant ? ` spatial-composer--${prototypeVariant.toLowerCase()}` : ''}`}
+      className="spatial-composer"
       style={{ left: position.x, top: position.y }}
       onSubmit={(event) => {
         event.preventDefault();

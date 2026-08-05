@@ -2,14 +2,11 @@ import { Grip, Pencil, X } from 'lucide-react';
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { useEffect, useRef } from 'react';
 
+import { findFreeComposerPosition } from '../freeComposerPosition';
 import { createSpaceCamera } from '../spaceCamera';
-import { hintForSpace } from '../spaceHint';
 import type { SpatialFieldInput } from '../spatialField';
 import type { SpaceState, Thought } from '../types';
-import {
-  ThoughtLauncherPrototype,
-  type LauncherVariant,
-} from './ThoughtLauncherPrototype';
+import { ThoughtLauncher } from './ThoughtLauncher';
 
 const palette = [0xf5eadc, 0xe3ece7, 0xe8e2ef, 0xf0e8d7, 0xdfe8ee];
 
@@ -17,8 +14,6 @@ type ThoughtSpaceProps = {
   state: SpaceState;
   selectedId: string | null;
   attachmentCandidateIds: string[];
-  isDragging: boolean;
-  showHint: boolean;
   onInput: (input: SpatialFieldInput) => void;
   onCreateRequest?: (
     screenPosition: { x: number; y: number },
@@ -26,7 +21,6 @@ type ThoughtSpaceProps = {
   ) => void;
   onEditRequest?: (thought: Thought, position: { x: number; y: number }) => void;
   onEmptyClick?: () => void;
-  launcherVariant?: LauncherVariant;
   composerOpen?: boolean;
   className?: string;
 };
@@ -35,13 +29,10 @@ export function ThoughtSpace({
   state,
   selectedId,
   attachmentCandidateIds,
-  isDragging,
-  showHint,
   onInput,
   onCreateRequest,
   onEditRequest,
   onEmptyClick,
-  launcherVariant,
   composerOpen = false,
   className = '',
 }: ThoughtSpaceProps) {
@@ -422,14 +413,12 @@ export function ThoughtSpace({
   }, [state, attachmentCandidateIds]);
 
   const selectedThought = state.thoughts.find((thought) => thought.id === selectedId);
-  const hint = showHint ? hintForSpace(state, isDragging) : null;
   const host = hostRef.current;
   const selectedPosition =
     selectedThought && host ? camera.worldToScreen(selectedThought) : null;
 
   return (
     <div ref={hostRef} className={`thought-space ${className}`}>
-      {hint && <p className="empty-space-hint">{hint}</p>}
       {selectedThought && selectedPosition && (
         <>
           <button
@@ -495,19 +484,27 @@ export function ThoughtSpace({
           </button>
         </>
       )}
-      {launcherVariant && (
-        <ThoughtLauncherPrototype
-          variant={launcherVariant}
-          composerOpen={composerOpen}
-          onOpen={(screenPosition) => {
-            onInputRef.current({ type: 'clear-selection' });
-            onCreateRequestRef.current?.(
-              screenPosition,
-              camera.screenToWorld(screenPosition),
-            );
-          }}
-        />
-      )}
+      <ThoughtLauncher
+        composerOpen={composerOpen}
+        getTapPosition={() => {
+          const zoom = camera.read().zoom;
+          return findFreeComposerPosition({
+            thoughts: stateRef.current.thoughts.map((thought) => ({
+              ...camera.worldToScreen(thought),
+              radius: thought.radius * zoom,
+            })),
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            zoom,
+          });
+        }}
+        onOpen={(screenPosition) => {
+          onInputRef.current({ type: 'clear-selection' });
+          onCreateRequestRef.current?.(
+            screenPosition,
+            camera.screenToWorld(screenPosition),
+          );
+        }}
+      />
     </div>
   );
 }

@@ -5,10 +5,6 @@ import {
   type DraftPosition,
 } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
-import {
-  PrototypeSwitcher,
-  type LauncherVariant,
-} from './components/ThoughtLauncherPrototype';
 import { spaceForQuery } from './initialSpace';
 import { createSpatialField, type SpatialFieldInput } from './spatialField';
 import { loadStoredSpace, saveStoredSpace, type SpaceStorage } from './spaceStorage';
@@ -23,14 +19,13 @@ function Wordmark() {
 }
 
 export function App() {
-  // PROTOTYPE: Three mobile composer variants, switchable via ?variant=, on the existing space.
-  const [launcherVariant, setLauncherVariant] = useState<LauncherVariant>(() => {
-    const requested = new URLSearchParams(window.location.search).get('variant');
-    return requested === 'B' || requested === 'C' ? requested : 'A';
-  });
   const [storage] = useState<SpaceStorage | null>(() => {
-    // Prototype sessions are intentionally disposable.
-    return null;
+    if (new URLSearchParams(window.location.search).has('debug')) return null;
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
   });
   const [field] = useState(() => {
     const initialState =
@@ -76,10 +71,7 @@ export function App() {
           state={state}
           selectedId={fieldSnapshot.selectedId}
           attachmentCandidateIds={fieldSnapshot.attachmentCandidateIds}
-          isDragging={fieldSnapshot.isDragging}
-          showHint={false}
           onInput={sendToField}
-          launcherVariant={launcherVariant}
           composerOpen={draftPosition !== null}
           onCreateRequest={(screenPosition, worldPosition) => {
             setDraftPosition(screenPosition);
@@ -108,7 +100,6 @@ export function App() {
               : undefined
           }
           label={editingId ? 'Edit thought' : undefined}
-          prototypeVariant={editingId ? undefined : launcherVariant}
           onCancel={() => {
             setDraftPosition(null);
             setDraftWorldPosition(null);
@@ -126,16 +117,6 @@ export function App() {
           }}
         />
       )}
-      <PrototypeSwitcher
-        current={launcherVariant}
-        composerOpen={draftPosition !== null}
-        onChange={(variant) => {
-          setLauncherVariant(variant);
-          setDraftPosition(null);
-          setDraftWorldPosition(null);
-          setEditingId(null);
-        }}
-      />
     </>
   );
 }
