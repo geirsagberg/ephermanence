@@ -39,7 +39,11 @@ function thought(id: string, x: number, y = 0): Thought {
   return { id, text: id, x, y, tone: 0 };
 }
 
-function createHarness(thoughts: Thought[] = [], attachments: [string, string][] = []) {
+function createHarness(
+  thoughts: Thought[] = [],
+  attachments: [string, string][] = [],
+  flushAuthoringSynchronously = true,
+) {
   const interaction = createSpatialInteraction({ thoughts, attachments });
   const events = new FakeEventSource();
   const canvas = new FakeEventSource();
@@ -85,6 +89,7 @@ function createHarness(thoughts: Thought[] = [], attachments: [string, string][]
     cancelFrame: (id) => frames.delete(id),
     setDelay: (callback, delay) => setTimeout(callback, delay),
     clearDelay: (handle) => clearTimeout(handle),
+    flushAuthoringSynchronously,
   };
   const onFrame = vi.fn();
   const onFailure = vi.fn();
@@ -207,6 +212,43 @@ describe('spatial field input adapter', () => {
     cleanup();
   });
 
+  it('reports launcher authoring synchronously so touch focus retains activation', async () => {
+    const harness = createHarness();
+    const cleanup = await mount(harness);
+    harness.flushFrame();
+    harness.onFrame.mockClear();
+
+    harness.adapter.send({ type: 'launcher-open', point: { x: 420, y: 360 } });
+
+    expect(harness.onFrame).toHaveBeenCalledOnce();
+    expect(harness.onFrame.mock.calls[0][0].effects).toEqual([
+      {
+        type: 'request-create',
+        screenPosition: { x: 420, y: 360 },
+        worldPosition: { x: -80, y: -40 },
+        tone: 0,
+      },
+    ]);
+    harness.flushFrame();
+    expect(harness.onFrame).toHaveBeenCalledOnce();
+    cleanup();
+  });
+
+  it('keeps authoring frame-coalesced outside iOS', async () => {
+    const harness = createHarness([], [], false);
+    const cleanup = await mount(harness);
+    harness.flushFrame();
+    harness.onFrame.mockClear();
+
+    harness.adapter.send({ type: 'launcher-open', point: { x: 420, y: 360 } });
+
+    expect(harness.onFrame).not.toHaveBeenCalled();
+    harness.flushFrame();
+    expect(harness.onFrame).toHaveBeenCalledOnce();
+    expect(harness.onFrame.mock.calls[0][0].effects[0]?.type).toBe('request-create');
+    cleanup();
+  });
+
   it('rerenders without the selected cluster outline after tapping empty space', async () => {
     const first = thought('first', 0);
     const second = thought('second', 90);
@@ -271,16 +313,72 @@ describe('spatial field input adapter', () => {
     const harness = createHarness([existing]);
     const cleanup = await mount(harness);
     const point = harness.interaction.worldToScreen(existing);
+    harness.flushFrame();
+    harness.onFrame.mockClear();
 
     harness.canvas.emit('dblclick', {
       clientX: point.x,
       clientY: point.y,
       preventDefault: vi.fn(),
     });
-    harness.flushFrame();
 
-    expect(harness.onFrame.mock.calls.at(-1)?.[0].effects).toEqual([
+    expect(harness.onFrame).toHaveBeenCalledOnce();
+    expect(harness.onFrame.mock.calls[0][0].effects).toEqual([
       { type: 'request-edit', thought: existing, screenPosition: point },
+    ]);
+    cleanup();
+  });
+
+  it('creates synchronously from a stationary canvas double click', async () => {
+    const harness = createHarness();
+    const cleanup = await mount(harness);
+    harness.flushFrame();
+    harness.onFrame.mockClear();
+
+    harness.canvas.emit('dblclick', {
+      clientX: 420,
+      clientY: 360,
+      preventDefault: vi.fn(),
+    });
+
+    expect(harness.onFrame).toHaveBeenCalledOnce();
+    expect(harness.onFrame.mock.calls[0][0].effects).toEqual([
+      {
+        type: 'request-create',
+        screenPosition: { x: 420, y: 360 },
+        worldPosition: { x: -80, y: -40 },
+        tone: 0,
+      },
+    ]);
+    cleanup();
+  });
+
+  it('edits synchronously from the touch edit control', async () => {
+    const existing = thought('selected', 0);
+    const harness = createHarness([existing]);
+    const cleanup = await mount(harness);
+    const screenPoint = harness.interaction.worldToScreen(existing);
+    harness.flushFrame();
+    harness.onFrame.mockClear();
+    const down = pointerEvent('pointer-down');
+    const up = pointerEvent('pointer-up', { timeStamp: 1100 });
+
+    harness.adapter.send({
+      type: 'thought-control',
+      thoughtId: existing.id,
+      control: 'edit',
+      event: down.event,
+    });
+    harness.adapter.send({
+      type: 'thought-control',
+      thoughtId: existing.id,
+      control: 'edit',
+      event: up.event,
+    });
+
+    expect(harness.onFrame).toHaveBeenCalledOnce();
+    expect(harness.onFrame.mock.calls[0][0].effects).toEqual([
+      { type: 'request-edit', thought: existing, screenPosition: screenPoint },
     ]);
     cleanup();
   });

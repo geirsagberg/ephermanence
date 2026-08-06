@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import { useAtomValue } from 'jotai';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { css } from '../../styled-system/css';
 import {
   composerOpenAtom,
@@ -10,6 +11,7 @@ import {
   nextThoughtToneColorAtom,
 } from '../appState';
 import { getLauncherDragUpdate, type Position } from '../thoughtLauncherDrag';
+import { isIOSDevice, shouldOpenThoughtImmediately } from '../touchThoughtAuthoring';
 
 type ThoughtLauncherProps = {
   getTapPosition: () => Position;
@@ -32,6 +34,7 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
     start: Position;
     target: Position;
   } | null>(null);
+  const openImmediately = isIOSDevice(navigator);
 
   useEffect(() => {
     if (launchRequest === handledLaunchRequest.current) return;
@@ -44,7 +47,7 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
     });
   }, [getTapPosition, launch, launchRequest]);
 
-  if (composerOpen) return null;
+  if (composerOpen && !launch) return null;
 
   return (
     <div
@@ -56,7 +59,7 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
         } as CSSProperties & Record<'--thought-tone' | '--thought-tone-dark', string>
       }
     >
-      {!launch && (
+      {!composerOpen && !launch && (
         <button
           ref={buttonRef}
           className={launcherBubbleClass}
@@ -114,14 +117,32 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
             dragPositionRef.current = null;
             setDragPosition(null);
             if (wasDrag && dragTarget) {
-              onOpen(dragTarget);
+              if (shouldOpenThoughtImmediately(event.pointerType, openImmediately)) {
+                flushSync(() => onOpen(dragTarget));
+              } else {
+                onOpen(dragTarget);
+              }
               return;
             }
 
             const rect = event.currentTarget.getBoundingClientRect();
+            const target = getTapPosition();
+            if (shouldOpenThoughtImmediately(event.pointerType, openImmediately)) {
+              flushSync(() => {
+                setLaunch({
+                  start: {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                  },
+                  target,
+                });
+                onOpen(target);
+              });
+              return;
+            }
             setLaunch({
               start: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
-              target: getTapPosition(),
+              target,
             });
           }}
           onPointerCancel={() => {
@@ -149,7 +170,7 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
           onAnimationEnd={() => {
             const target = launch.target;
             setLaunch(null);
-            onOpen(target);
+            if (!composerOpen) onOpen(target);
           }}
           aria-hidden="true"
         />

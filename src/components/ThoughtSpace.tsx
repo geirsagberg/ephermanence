@@ -102,7 +102,11 @@ export function ThoughtSpace({
   ) => inputAdapter.send({ type: 'thought-control', control, thoughtId, event });
 
   return (
-    <div ref={hostRef} className={cx(thoughtSpaceClass, className)}>
+    <div
+      ref={hostRef}
+      className={cx(thoughtSpaceClass, className)}
+      data-authoring={composerOpen || undefined}
+    >
       {!composerOpen && selectedThought && selectedPosition && actionPositions && (
         <Fragment key={selectedThought.id}>
           <button
@@ -252,12 +256,21 @@ const thoughtSpaceClass = css({
   zIndex: 1,
   inset: 0,
   touchAction: 'none',
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  WebkitTouchCallout: 'none',
   '& canvas': {
     display: 'block',
     width: '100%',
     height: '100%',
     cursor: 'grab',
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
     WebkitTapHighlightColor: 'transparent',
+  },
+  '&[data-authoring] canvas': {
+    pointerEvents: 'none',
   },
 });
 

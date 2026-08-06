@@ -1,5 +1,6 @@
 import { Provider, useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { Download, Moon, Upload } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { css } from '../styled-system/css';
 
@@ -163,6 +164,7 @@ type AppRuntime = ReturnType<typeof createAppRuntime>;
 function AppView({ runtime }: { runtime: AppRuntime }) {
   const tuningAmbientBubbles = new URLSearchParams(window.location.search).has('tune');
   const [colorMode, setColorMode] = useState<ColorMode>(readColorMode);
+  const [authoringOffsetY, setAuthoringOffsetY] = useState(0);
 
   useEffect(() => {
     document.documentElement.dataset.theme = colorMode;
@@ -179,33 +181,41 @@ function AppView({ runtime }: { runtime: AppRuntime }) {
 
   return (
     <>
-      <main className={appShellClass}>
-        <header className={appHeaderClass}>
-          <WordmarkMenu
+      <div
+        className={authoringViewportClass}
+        style={{ '--authoring-offset-y': `${authoringOffsetY}px` } as CSSProperties}
+      >
+        <main className={appShellClass}>
+          <header className={appHeaderClass}>
+            <WordmarkMenu
+              colorMode={colorMode}
+              onColorModeChange={setColorMode}
+              onExport={() => downloadSpace(runtime.interaction.read().state)}
+              onImport={(space) => {
+                if (
+                  runtime.interaction.read().state.thoughts.length > 0 &&
+                  !window.confirm('Replace the current space with this import?')
+                ) {
+                  return false;
+                }
+                runtime.fieldInput.send({ type: 'replace-space', state: space });
+                return true;
+              }}
+            />
+          </header>
+          <ThoughtSpace
+            interaction={runtime.interaction}
+            inputAdapter={runtime.fieldInput}
+            findFreePosition={runtime.authoring.findFreePosition}
             colorMode={colorMode}
-            onColorModeChange={setColorMode}
-            onExport={() => downloadSpace(runtime.interaction.read().state)}
-            onImport={(space) => {
-              if (
-                runtime.interaction.read().state.thoughts.length > 0 &&
-                !window.confirm('Replace the current space with this import?')
-              ) {
-                return false;
-              }
-              runtime.fieldInput.send({ type: 'replace-space', state: space });
-              return true;
-            }}
           />
-        </header>
-        <ThoughtSpace
-          interaction={runtime.interaction}
-          inputAdapter={runtime.fieldInput}
-          findFreePosition={runtime.authoring.findFreePosition}
-          colorMode={colorMode}
+        </main>
+        <ConnectedSpatialThoughtComposer
+          runtime={runtime}
+          onViewportOffsetChange={setAuthoringOffsetY}
         />
-      </main>
+      </div>
       {tuningAmbientBubbles && <ConnectedAmbientBubbleTuner />}
-      <ConnectedSpatialThoughtComposer runtime={runtime} />
     </>
   );
 }
@@ -223,7 +233,13 @@ function ConnectedAmbientBubbleTuner() {
   );
 }
 
-function ConnectedSpatialThoughtComposer({ runtime }: { runtime: AppRuntime }) {
+function ConnectedSpatialThoughtComposer({
+  runtime,
+  onViewportOffsetChange,
+}: {
+  runtime: AppRuntime;
+  onViewportOffsetChange: (offsetY: number) => void;
+}) {
   const authoringState = useAtomValue(thoughtAuthoringStateAtom);
   const sendToAuthoring = useSetAtom(sendThoughtAuthoringAtom);
   const activeState = authoringState.mode === 'idle' ? null : authoringState;
@@ -283,12 +299,19 @@ function ConnectedSpatialThoughtComposer({ runtime }: { runtime: AppRuntime }) {
         zoom,
       }}
       onVisualChange={presentAuthoring}
+      onViewportOffsetChange={onViewportOffsetChange}
       onCancel={() => sendToAuthoring({ type: 'cancel' })}
       onExitComplete={() => setRetainedState(null)}
       onKeep={(text) => sendToAuthoring({ type: 'keep', text })}
     />
   ) : null;
 }
+
+const authoringViewportClass = css({
+  position: 'fixed',
+  inset: 0,
+  transform: 'translateY(var(--authoring-offset-y))',
+});
 
 function createAppRuntime() {
   const search = window.location.search;

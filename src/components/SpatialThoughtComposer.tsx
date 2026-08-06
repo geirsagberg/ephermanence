@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { css } from '../../styled-system/css';
 import type { ThoughtAuthoringPresentation } from '../spatialFieldScene';
+import { composerPositionForKeyboard } from '../touchThoughtAuthoring';
 
 export type DraftPosition = { x: number; y: number };
 
@@ -19,6 +20,7 @@ type SpatialThoughtComposerProps = {
   onExitComplete: () => void;
   onKeep: (text: string) => void;
   onVisualChange: (presentation?: ThoughtAuthoringPresentation) => void;
+  onViewportOffsetChange: (offsetY: number) => void;
   targetScaleForText: (text: string) => number;
 };
 
@@ -36,6 +38,7 @@ export function SpatialThoughtComposer({
   onExitComplete,
   onKeep,
   onVisualChange,
+  onViewportOffsetChange,
   targetScaleForText,
 }: SpatialThoughtComposerProps) {
   const [text, setText] = useState(initialText);
@@ -51,10 +54,29 @@ export function SpatialThoughtComposer({
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    textarea.focus();
+    const updatePosition = () => {
+      const visualViewport = window.visualViewport;
+      const safePosition = composerPositionForKeyboard({
+        position,
+        layoutHeight: window.innerHeight,
+        visualViewport: visualViewport
+          ? { offsetTop: visualViewport.offsetTop, height: visualViewport.height }
+          : undefined,
+      });
+      onViewportOffsetChange(safePosition.y - position.y);
+    };
+    updatePosition();
+    textarea.focus({ preventScroll: true });
     const end = textarea.value.length;
     textarea.setSelectionRange(end, end);
-  }, []);
+    window.visualViewport?.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('scroll', updatePosition);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('scroll', updatePosition);
+      onViewportOffsetChange(0);
+    };
+  }, [onViewportOffsetChange, position]);
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -118,7 +140,11 @@ export function SpatialThoughtComposer({
       event.stopImmediatePropagation();
     };
     window.addEventListener('click', suppressClick, true);
-    return () => window.removeEventListener('click', suppressClick, true);
+    window.addEventListener('dblclick', suppressClick, true);
+    return () => {
+      window.removeEventListener('click', suppressClick, true);
+      window.removeEventListener('dblclick', suppressClick, true);
+    };
   }, [exit]);
 
   useEffect(() => {

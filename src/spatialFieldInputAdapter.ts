@@ -17,6 +17,7 @@ import type {
 import type { Point } from './spatialField';
 import type { ThoughtAuthoringCommand } from './thoughtAuthoring';
 import type { SpaceState } from './types';
+import { isIOSDevice } from './touchThoughtAuthoring';
 
 export type SpatialFieldPresentation = {
   ambientBubbleSettings: AmbientBubbleSettings;
@@ -68,6 +69,7 @@ export type SpatialFieldInputRuntime = {
   cancelFrame: (handle: number) => void;
   setDelay: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   clearDelay: (handle: ReturnType<typeof setTimeout>) => void;
+  flushAuthoringSynchronously: boolean;
 };
 
 export type SpatialFieldInputAdapter = {
@@ -131,17 +133,27 @@ export function createSpatialFieldInputAdapter({
     longPress = null;
   };
 
+  const emitFrame = () => {
+    if (!mounted) return;
+    const effects = pendingEffects;
+    const launchRequests = pendingLaunchRequests;
+    pendingEffects = [];
+    pendingLaunchRequests = 0;
+    onFrame({ snapshot: interaction.read(), effects, launchRequests });
+  };
+
   const scheduleFrame = () => {
     if (!mounted || frameHandle !== null) return;
     frameHandle = runtime.requestFrame(() => {
       frameHandle = null;
-      if (!mounted) return;
-      const effects = pendingEffects;
-      const launchRequests = pendingLaunchRequests;
-      pendingEffects = [];
-      pendingLaunchRequests = 0;
-      onFrame({ snapshot: interaction.read(), effects, launchRequests });
+      emitFrame();
     });
+  };
+
+  const flushFrame = () => {
+    if (frameHandle !== null) runtime.cancelFrame(frameHandle);
+    frameHandle = null;
+    emitFrame();
   };
 
   const render = () => {
@@ -159,7 +171,12 @@ export function createSpatialFieldInputAdapter({
     if (transition.cursor && scene) scene.canvas.style.cursor = transition.cursor;
     if (transition.render) render();
     if (transition.effects.length > 0) pendingEffects.push(...transition.effects);
-    scheduleFrame();
+    if (
+      runtime.flushAuthoringSynchronously &&
+      transition.effects.some(isAuthoringRequest)
+    ) {
+      flushFrame();
+    } else scheduleFrame();
     return transition;
   };
 
@@ -520,13 +537,17 @@ export function createSpatialFieldInputAdapter({
         dispatch(input);
         return;
       }
-      dispatch(
-        input.type === 'launcher-open'
-          ? { type: 'launcher-open', point: input.point }
-          : input.command,
-      );
+      if (input.type === 'launcher-open') {
+        dispatch({ type: 'launcher-open', point: input.point });
+        return;
+      }
+      dispatch(input.command);
     },
   };
+}
+
+function isAuthoringRequest(effect: SpatialInteractionEffect) {
+  return effect.type === 'request-create' || effect.type === 'request-edit';
 }
 
 function samePresentation(
@@ -558,5 +579,6 @@ function browserRuntime(): SpatialFieldInputRuntime {
     cancelFrame: (handle) => window.cancelAnimationFrame(handle),
     setDelay: (callback, delay) => window.setTimeout(callback, delay),
     clearDelay: (handle) => window.clearTimeout(handle),
+    flushAuthoringSynchronously: isIOSDevice(navigator),
   };
 }
