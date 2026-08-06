@@ -56,6 +56,8 @@ type ThoughtBubbleRecord = {
 };
 
 const bondFadeDuration = 240;
+const clusterOutlineFadeDuration = 180;
+const thoughtFadeDuration = 180;
 const thoughtElevationDuration = 220;
 const thoughtRise = 2;
 const maxThoughtShadowPadding = 46;
@@ -65,10 +67,15 @@ export class SpatialFieldScene extends Container {
   private readonly bondFades = new Container();
   private readonly foreground = new Container();
   private readonly clusterOutline = new Graphics();
+  private clusterOutlineTargetAlpha = 0;
   private readonly bonds = new Container();
   private readonly thoughts = new Container();
   private readonly activeBonds = new Map<string, ActiveBond>();
   private readonly thoughtBubbles = new Map<string, ThoughtBubbleRecord>();
+  private readonly fadingThoughts = new Map<
+    string,
+    { bubble: Container; elapsed: number }
+  >();
   private readonly fadingBonds = new Map<
     string,
     { graphic: Graphics; elapsed: number }
@@ -79,6 +86,7 @@ export class SpatialFieldScene extends Container {
     private readonly createThoughtShadowFilter?: ThoughtShadowFilterFactory,
   ) {
     super();
+    this.clusterOutline.alpha = 0;
     this.foreground.addChild(this.clusterOutline, this.bonds, this.thoughts);
     this.addChild(this.ambient, this.bondFades, this.foreground);
   }
@@ -172,12 +180,40 @@ export class SpatialFieldScene extends Container {
 
     for (const [id, record] of this.thoughtBubbles) {
       if (nextThoughtIds.has(id)) continue;
-      record.bubble.destroy({ children: true });
+      if (id === hiddenThoughtId) {
+        record.bubble.destroy({ children: true });
+      } else {
+        record.bubble.eventMode = 'none';
+        record.bubble.cursor = 'default';
+        this.fadingThoughts.set(id, { bubble: record.bubble, elapsed: 0 });
+      }
       this.thoughtBubbles.delete(id);
+    }
+    for (const fading of this.fadingThoughts.values()) {
+      this.thoughts.addChild(fading.bubble);
     }
   }
 
   advanceAnimations(deltaMs: number) {
+    if (this.clusterOutline.alpha !== this.clusterOutlineTargetAlpha) {
+      const direction = Math.sign(
+        this.clusterOutlineTargetAlpha - this.clusterOutline.alpha,
+      );
+      this.clusterOutline.alpha = Math.max(
+        0,
+        Math.min(
+          1,
+          this.clusterOutline.alpha +
+            direction *
+              Math.min(
+                deltaMs / clusterOutlineFadeDuration,
+                Math.abs(this.clusterOutlineTargetAlpha - this.clusterOutline.alpha),
+              ),
+        ),
+      );
+      if (this.clusterOutline.alpha === 0) this.clusterOutline.clear();
+    }
+
     for (const [key, fading] of this.fadingBonds) {
       fading.elapsed += deltaMs;
       const progress = Math.min(1, fading.elapsed / bondFadeDuration);
@@ -186,6 +222,16 @@ export class SpatialFieldScene extends Container {
       fading.graphic.removeFromParent();
       fading.graphic.destroy();
       this.fadingBonds.delete(key);
+    }
+
+    for (const [id, fading] of this.fadingThoughts) {
+      fading.elapsed += deltaMs;
+      const progress = Math.min(1, fading.elapsed / thoughtFadeDuration);
+      fading.bubble.alpha = 1 - progress;
+      if (progress < 1) continue;
+      fading.bubble.removeFromParent();
+      fading.bubble.destroy({ children: true });
+      this.fadingThoughts.delete(id);
     }
 
     const elevationStep = deltaMs / thoughtElevationDuration;
@@ -218,7 +264,6 @@ export class SpatialFieldScene extends Container {
     selectedId: string | null,
     attachmentCandidateIds: string[],
   ) {
-    this.clusterOutline.clear();
     const outlinedIds = new Set<string>();
     if (selectedId) {
       const clusterIds = connectedThoughtIds(selectedId, state.attachments);
@@ -233,6 +278,13 @@ export class SpatialFieldScene extends Container {
       }
     }
 
+    this.clusterOutlineTargetAlpha = outlinedIds.size > 0 ? 1 : 0;
+    if (outlinedIds.size === 0) {
+      if (this.clusterOutline.alpha === 0) this.clusterOutline.clear();
+      return;
+    }
+
+    this.clusterOutline.clear();
     for (const thought of state.thoughts) {
       if (!outlinedIds.has(thought.id)) continue;
       this.clusterOutline

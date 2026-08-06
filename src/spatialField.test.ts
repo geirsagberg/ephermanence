@@ -39,6 +39,38 @@ describe('spatial field transitions', () => {
     ]);
   });
 
+  it('preserves depth on an ordinary pointer down', () => {
+    const spatialField = field([
+      thought('pressed', 100),
+      thought('middle', 200),
+      thought('front', 300),
+    ]);
+
+    startDrag(spatialField, 'pressed');
+
+    expect(spatialField.read().state.thoughts.map(({ id }) => id)).toEqual([
+      'pressed',
+      'middle',
+      'front',
+    ]);
+    expect(spatialField.read().selectedId).toBeNull();
+  });
+
+  it('brings a thought to the front when solo dragging begins', () => {
+    const spatialField = field(
+      [thought('solo', 100), thought('joined', 200), thought('front', 300)],
+      [['solo', 'joined']],
+    );
+
+    startDrag(spatialField, 'solo', { x: 0, y: 0 }, true);
+
+    expect(spatialField.read().state.thoughts.map(({ id }) => id)).toEqual([
+      'joined',
+      'front',
+      'solo',
+    ]);
+  });
+
   it('moves an attached group through a complete drag at the current zoom', () => {
     const spatialField = field(
       [thought('moving', 100), thought('joined', 200), thought('fixed', 400)],
@@ -94,9 +126,9 @@ describe('spatial field transitions', () => {
     const snapshot = spatialField.dispatch({ type: 'pointer-up' });
 
     expect(snapshot.state.thoughts).toEqual([
-      thought('moving', 305),
       thought('old', 100),
       thought('new', 405),
+      thought('moving', 305),
     ]);
     expect(snapshot.state.attachments).toEqual([
       ['old', 'new'],

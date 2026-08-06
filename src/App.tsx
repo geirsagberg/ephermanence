@@ -88,6 +88,7 @@ function ConnectedSpatialThoughtComposer() {
   return authoringState.mode !== 'idle' ? (
     <SpatialThoughtComposer
       key={authoringState.mode === 'editing' ? authoringState.id : 'new'}
+      fadeOnCancel={authoringState.mode === 'creating'}
       position={authoringState.screenPosition}
       initialText={
         authoringState.mode === 'editing' ? authoringState.initialText : undefined

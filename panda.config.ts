@@ -65,6 +65,16 @@ export default defineConfig({
             transform: 'translate(-50%, -50%) scale(1)',
           },
         },
+        composerDismiss: {
+          from: {
+            opacity: 1,
+            transform: 'translate(-50%, -50%) scale(1)',
+          },
+          to: {
+            opacity: 0,
+            transform: 'translate(-50%, -50%) scale(0.82)',
+          },
+        },
         launchSeed: {
           from: {
             opacity: 0.72,

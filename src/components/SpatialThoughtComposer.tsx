@@ -5,6 +5,7 @@ import { css } from '../../styled-system/css';
 export type DraftPosition = { x: number; y: number };
 
 type SpatialThoughtComposerProps = {
+  fadeOnCancel?: boolean;
   position: DraftPosition;
   initialText?: string;
   label?: string;
@@ -14,6 +15,7 @@ type SpatialThoughtComposerProps = {
 };
 
 export function SpatialThoughtComposer({
+  fadeOnCancel = false,
   position,
   initialText = '',
   label = 'New thought at this position',
@@ -22,6 +24,7 @@ export function SpatialThoughtComposer({
   toneColor,
 }: SpatialThoughtComposerProps) {
   const [text, setText] = useState(initialText);
+  const [canceling, setCanceling] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const savedRef = useRef(false);
@@ -41,19 +44,44 @@ export function SpatialThoughtComposer({
     onKeep(next);
   }, [onKeep, text]);
 
+  const cancel = useCallback(() => {
+    if (savedRef.current) return;
+    savedRef.current = true;
+    if (fadeOnCancel) setCanceling(true);
+    else onCancel();
+  }, [fadeOnCancel, onCancel]);
+
+  useEffect(() => {
+    if (!canceling) return;
+    const suppressClick = (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    window.addEventListener('click', suppressClick, true);
+    return () => window.removeEventListener('click', suppressClick, true);
+  }, [canceling]);
+
   useEffect(() => {
     const saveOnTapAway = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && !formRef.current?.contains(target)) keep();
+      if (!(target instanceof Node) || formRef.current?.contains(target)) return;
+      if (text.trim()) {
+        keep();
+      } else {
+        event.preventDefault();
+        event.stopPropagation();
+        cancel();
+      }
     };
     window.addEventListener('pointerdown', saveOnTapAway, true);
     return () => window.removeEventListener('pointerdown', saveOnTapAway, true);
-  }, [keep]);
+  }, [cancel, keep, text]);
 
   return (
     <form
       ref={formRef}
       className={composerClass}
+      data-canceling={canceling || undefined}
       style={
         {
           left: position.x,
@@ -65,13 +93,19 @@ export function SpatialThoughtComposer({
         event.preventDefault();
         keep();
       }}
+      onAnimationEnd={() => {
+        if (canceling) onCancel();
+      }}
     >
       <textarea
         ref={textareaRef}
         value={text}
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') onCancel();
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            cancel();
+          }
           if (
             event.key === 'Enter' &&
             !event.shiftKey &&
@@ -104,6 +138,10 @@ const composerClass = css({
   boxShadow: '0 14px 38px rgb(62 67 61 / 10%)',
   transform: 'translate(-50%, -50%)',
   animation: 'composerBloom 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
+  '&[data-canceling]': {
+    pointerEvents: 'none',
+    animation: 'composerDismiss 180ms ease-in both',
+  },
   '& textarea': {
     width: '100%',
     height: '90px',

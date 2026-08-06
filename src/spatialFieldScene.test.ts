@@ -103,8 +103,43 @@ describe('spatial field scene', () => {
     expect(outline.bounds.maxX).toBe(182);
 
     scene.render({ ...snapshot(state), selectedId: 'alone' }, viewport);
+    scene.advanceAnimations(180);
 
     expect(clusterOutline(scene).context.instructions).toHaveLength(0);
+  });
+
+  it('fades the cluster outline in and out', () => {
+    const scene = new SpatialFieldScene();
+    const first = {
+      id: 'first',
+      text: 'First',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    const second = { ...first, id: 'second', text: 'Second', x: 100 };
+    const state = {
+      thoughts: [first, second],
+      attachments: [['first', 'second']] as [string, string][],
+    };
+
+    scene.render({ ...snapshot(state), selectedId: 'first' }, viewport);
+    const outline = clusterOutline(scene);
+    expect(outline.alpha).toBe(0);
+
+    scene.advanceAnimations(90);
+    expect(outline.alpha).toBeCloseTo(0.5);
+    scene.advanceAnimations(90);
+    expect(outline.alpha).toBe(1);
+
+    scene.render(snapshot(state), viewport);
+    expect(outline.context.instructions.length).toBeGreaterThan(0);
+    scene.advanceAnimations(90);
+    expect(outline.alpha).toBeCloseTo(0.5);
+    scene.advanceAnimations(90);
+    expect(outline.alpha).toBe(0);
+    expect(outline.context.instructions).toHaveLength(0);
   });
 
   it('forwards the pointer identity needed to recognize a long press', () => {
@@ -326,6 +361,29 @@ describe('spatial field scene', () => {
     expect(thoughts(scene).children).toHaveLength(1);
     expect(thoughts(scene).children[0].x).toBe(100);
     expect(thoughts(scene).children[0].eventMode).toBe('static');
+  });
+
+  it('fades a deleted Thought away', () => {
+    const scene = new SpatialFieldScene();
+    const deleted = {
+      id: 'deleted',
+      text: 'Deleted',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    scene.render(snapshot({ thoughts: [deleted], attachments: [] }), viewport);
+    const deletedBubble = thoughts(scene).children[0];
+
+    scene.render(snapshot(), viewport);
+
+    expect(thoughts(scene).children).toEqual([deletedBubble]);
+    expect(deletedBubble.eventMode).toBe('none');
+    scene.advanceAnimations(90);
+    expect(deletedBubble.alpha).toBeCloseTo(0.5);
+    scene.advanceAnimations(90);
+    expect(thoughts(scene).children).toHaveLength(0);
   });
 
   it('fades a removed Bond after release', () => {

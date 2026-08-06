@@ -61,6 +61,12 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
       switch (input.type) {
         case 'thought-pointer-down': {
           attachmentCandidateIds = [];
+          if (input.singular) {
+            state = {
+              ...state,
+              thoughts: bringThoughtToFront(state.thoughts, input.id),
+            };
+          }
           drag = {
             activeId: input.id,
             distance: 0,
