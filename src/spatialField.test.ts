@@ -271,8 +271,8 @@ describe('spatial field transitions', () => {
     expect(created.radius).toBeGreaterThan(0);
   });
 
-  it('gives long thoughts more room without changing medium thought sizing', () => {
-    expect(thoughtRadius('x'.repeat(80))).toBe(88);
-    expect(thoughtRadius('x'.repeat(220))).toBe(152);
+  it('scales thought area with text length without overgrowing the longest thoughts', () => {
+    expect(thoughtRadius('x'.repeat(98))).toBeCloseTo(102.3);
+    expect(thoughtRadius('x'.repeat(220))).toBeCloseTo(135.63);
   });
 });

@@ -236,11 +236,11 @@ function bringThoughtToFrontWhenAlone(
 }
 
 export function thoughtRadius(text: string) {
-  const min = 64;
-  const max = 152;
-  const longTextBoost = Math.max(0, text.length - 80) * 0.18;
-  const radius = 60 + text.length * 0.35 + longTextBoost;
-  return Math.max(min, Math.min(max, radius));
+  const minimumRadius = 64;
+  const maximumRadius = 144;
+  const areaPerCharacter = 65;
+  const radius = Math.sqrt(minimumRadius ** 2 + text.length * areaPerCharacter);
+  return Math.min(maximumRadius, radius);
 }
 
 export function connectedThoughtIds(id: string, attachments: Attachment[]) {

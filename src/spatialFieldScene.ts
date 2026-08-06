@@ -1,6 +1,7 @@
 import { DropShadowFilter } from 'pixi-filters/drop-shadow';
 import {
   Application,
+  CanvasTextMetrics,
   Container,
   Graphics,
   Text,
@@ -15,6 +16,7 @@ import type {
   SpatialInteractionSnapshot,
 } from './spatialInteraction';
 import { getThoughtTone } from './thoughtTone';
+import { wrapTextInCircle } from './thoughtTextLayout';
 
 export type WorldBounds = {
   left: number;
@@ -440,18 +442,23 @@ function createThoughtBubble(
     body.filters = [shadowFilter];
   }
 
+  const textStyle = new TextStyle({
+    fontFamily: 'Iowan Old Style, Baskerville, Georgia, serif',
+    fontSize: thought.text.length > 48 ? 16 : 17,
+    fill: 0x26312d,
+    align: 'center',
+    lineHeight: 23,
+  });
+  const wrappedText = wrapTextInCircle(
+    thought.text,
+    thought.radius,
+    23,
+    (text) => CanvasTextMetrics.measureText(text, textStyle, undefined, false).width,
+  );
   const label = new Text({
-    text: thought.text,
+    text: wrappedText,
     autoGenerateMipmaps: true,
-    style: new TextStyle({
-      fontFamily: 'Iowan Old Style, Baskerville, Georgia, serif',
-      fontSize: thought.text.length > 48 ? 16 : 17,
-      fill: 0x26312d,
-      align: 'center',
-      lineHeight: 23,
-      wordWrap: true,
-      wordWrapWidth: thought.radius * 1.42,
-    }),
+    style: textStyle,
   });
   label.anchor.set(0.5);
   const cachedVisual = new Container();
