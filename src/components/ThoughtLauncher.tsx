@@ -8,8 +8,7 @@ import {
   launcherRequestAtom,
   nextThoughtToneColorAtom,
 } from '../appState';
-
-type Position = { x: number; y: number };
+import { getLauncherDragUpdate, type Position } from '../thoughtLauncherDrag';
 
 type ThoughtLauncherProps = {
   getTapPosition: () => Position;
@@ -23,6 +22,8 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
   const buttonRef = useRef<HTMLButtonElement>(null);
   const handledLaunchRequest = useRef(launchRequest);
   const pointerStart = useRef<Position | null>(null);
+  const launcherCenter = useRef<Position | null>(null);
+  const dragStarted = useRef(false);
   const dragPositionRef = useRef<Position | null>(null);
   const [dragPosition, setDragPosition] = useState<Position | null>(null);
   const [launch, setLaunch] = useState<{
@@ -62,32 +63,54 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
                   top: dragPosition.y,
                   right: 'auto',
                   bottom: 'auto',
+                  transform: 'translate(-50%, -50%)',
                 }
               : undefined
           }
           aria-label="Add a thought"
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId);
-            pointerStart.current = { x: event.clientX, y: event.clientY };
+            const pointer = { x: event.clientX, y: event.clientY };
+            const rect = event.currentTarget.getBoundingClientRect();
+            const center = {
+              x: rect.left + rect.width / 2,
+              y: rect.top + rect.height / 2,
+            };
+            pointerStart.current = pointer;
+            launcherCenter.current = center;
+            dragStarted.current = false;
+            dragPositionRef.current = center;
+            setDragPosition(center);
           }}
           onPointerMove={(event) => {
-            if (!pointerStart.current) return;
-            const distance = Math.hypot(
-              event.clientX - pointerStart.current.x,
-              event.clientY - pointerStart.current.y,
-            );
-            if (distance <= 7) return;
-            const position = { x: event.clientX, y: event.clientY };
-            dragPositionRef.current = position;
-            setDragPosition(position);
+            if (!pointerStart.current || !launcherCenter.current) return;
+            const update = getLauncherDragUpdate({
+              launcherCenter: launcherCenter.current,
+              pointer: { x: event.clientX, y: event.clientY },
+              pointerStart: pointerStart.current,
+            });
+            dragStarted.current ||= update.isDrag;
+            dragPositionRef.current = update.center;
+            setDragPosition(update.center);
           }}
           onPointerUp={(event) => {
-            const dragTarget = dragPositionRef.current;
+            const update =
+              pointerStart.current && launcherCenter.current
+                ? getLauncherDragUpdate({
+                    launcherCenter: launcherCenter.current,
+                    pointer: { x: event.clientX, y: event.clientY },
+                    pointerStart: pointerStart.current,
+                  })
+                : null;
+            const wasDrag = dragStarted.current || Boolean(update?.isDrag);
+            const dragTarget = update?.center ?? dragPositionRef.current;
             pointerStart.current = null;
+            launcherCenter.current = null;
+            dragStarted.current = false;
             dragPositionRef.current = null;
             setDragPosition(null);
-            if (dragTarget) {
-              onOpen({ x: event.clientX, y: event.clientY });
+            if (wasDrag && dragTarget) {
+              onOpen(dragTarget);
               return;
             }
 
@@ -99,6 +122,8 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
           }}
           onPointerCancel={() => {
             pointerStart.current = null;
+            launcherCenter.current = null;
+            dragStarted.current = false;
             dragPositionRef.current = null;
             setDragPosition(null);
           }}
@@ -154,8 +179,7 @@ const launcherBubbleClass = css({
   cursor: 'grab',
   touchAction: 'none',
   transform: 'translateX(-50%)',
-  transition:
-    'width 180ms ease, height 180ms ease, box-shadow 180ms ease, transform 180ms ease',
+  transition: 'width 180ms ease, height 180ms ease, box-shadow 180ms ease',
   pointerEvents: 'auto',
   WebkitTapHighlightColor: 'transparent',
   _active: {
