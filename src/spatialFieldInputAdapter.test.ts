@@ -179,6 +179,24 @@ describe('spatial field input adapter', () => {
     cleanup();
   });
 
+  it('rerenders without the selected cluster outline after tapping empty space', async () => {
+    const first = thought('first', 0);
+    const second = thought('second', 90);
+    const harness = createHarness([first, second], [['first', 'second']]);
+    const cleanup = await mount(harness);
+    const screenPoint = harness.interaction.worldToScreen(first);
+    harness.thoughtPointerDown(first.id, screenPoint, false, 1);
+    harness.events.emit('pointerup', nativePointer());
+    expect(harness.interaction.read().selectedId).toBe(first.id);
+    harness.render.mockClear();
+
+    harness.canvas.emit('click', { clientX: 900, clientY: 700, timeStamp: 1000 });
+
+    expect(harness.interaction.read().selectedId).toBeNull();
+    expect(harness.render).toHaveBeenCalledOnce();
+    cleanup();
+  });
+
   it('prevents a touch Thought control from falling through to canvas tap-away', async () => {
     const existing = thought('selected', 0);
     const harness = createHarness([existing]);

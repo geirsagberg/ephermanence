@@ -192,8 +192,9 @@ export function createSpatialInteraction(
           if (thoughtAt(input.point, field.read().state.thoughts, camera)) {
             return finish();
           }
+          const before = field.read();
           clearSelection();
-          return finish([{ type: 'empty-activated' }]);
+          return finish([{ type: 'empty-activated' }], field.read() !== before);
         }
         case 'canvas-double-click': {
           const thought = thoughtAt(input.point, field.read().state.thoughts, camera);
