@@ -81,6 +81,29 @@ describe('Thought authoring', () => {
     });
 
     expect(position.x).toBeGreaterThan(viewport.width / 2);
+    expect(position.x).toBeLessThan(viewport.width - 105 - 16);
+  });
+
+  it('balances desktop placement between existing thoughts and screen edges', () => {
+    const authoring = createThoughtAuthoring();
+    const desktop = { width: 1_200, height: 1_200 };
+    const existing = { x: 250, y: 552, radius: 80 };
+
+    const position = authoring.findFreePosition({
+      thoughts: [existing],
+      viewport: desktop,
+      zoom: 1,
+    });
+
+    const thoughtClearance =
+      Math.hypot(position.x - existing.x, position.y - existing.y) -
+      existing.radius -
+      72 -
+      8;
+    const rightEdgeClearance = desktop.width - 105 - 16 - position.x;
+    expect(position.x).toBeGreaterThan(desktop.width / 2);
+    expect(rightEdgeClearance).toBeGreaterThan(0);
+    expect(Math.abs(thoughtClearance - rightEdgeClearance)).toBeLessThan(110);
   });
 
   it('scales its collision footprint when zoomed out', () => {

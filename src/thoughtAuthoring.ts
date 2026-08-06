@@ -107,7 +107,14 @@ function findFreePosition({ thoughts, viewport, zoom }: FreeThoughtPositionInput
     x: viewport.width / 2,
     y: clamp(viewport.height * 0.46, minY, maxY),
   };
-  if (thoughts.length === 0) return preferred;
+  const visibleThoughts = thoughts.filter(
+    (thought) =>
+      thought.x + thought.radius >= 0 &&
+      thought.x - thought.radius <= viewport.width &&
+      thought.y + thought.radius >= 0 &&
+      thought.y - thought.radius <= viewport.height,
+  );
+  if (visibleThoughts.length === 0) return preferred;
 
   const step = Math.max(24, Math.min(viewport.width, viewport.height) / 12);
   const scanAxis = (min: number, max: number) => {
@@ -124,7 +131,7 @@ function findFreePosition({ thoughts, viewport, zoom }: FreeThoughtPositionInput
   ];
   const best = candidates.reduce(
     (currentBest, candidate) => {
-      const clearance = thoughts.reduce(
+      const thoughtClearance = visibleThoughts.reduce(
         (closest, thought) =>
           Math.min(
             closest,
@@ -135,6 +142,13 @@ function findFreePosition({ thoughts, viewport, zoom }: FreeThoughtPositionInput
           ),
         Number.POSITIVE_INFINITY,
       );
+      const edgeClearance = Math.min(
+        candidate.x - minX,
+        maxX - candidate.x,
+        candidate.y - minY,
+        maxY - candidate.y,
+      );
+      const clearance = Math.min(thoughtClearance, edgeClearance);
       const preferredDistance = Math.hypot(
         candidate.x - preferred.x,
         candidate.y - preferred.y,
