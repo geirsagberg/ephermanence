@@ -31,6 +31,21 @@ export type AmbientBubbleSettings = {
   density: number;
 };
 
+export type ThoughtAuthoringPresentation = {
+  id: string;
+  position: Point;
+  tone: number;
+  openScale: number;
+  phase: 'open' | 'keep' | 'cancel-close' | 'cancel-dismiss';
+  closeScale: number;
+  text?: string;
+  elevation: {
+    source: number;
+    target: number;
+    zoom: number;
+  };
+};
+
 export const defaultAmbientBubbleSettings: AmbientBubbleSettings = {
   size: 0.7,
   presence: 0.5,
@@ -66,6 +81,30 @@ const thoughtAppearanceStartAlpha = 0.7;
 const thoughtElevationDuration = 220;
 const thoughtRise = 2;
 const maxThoughtShadowPadding = 46;
+const thoughtAuthoringOpenDuration = 240;
+const thoughtAuthoringCloseDuration = 200;
+const thoughtAuthoringDismissDuration = 180;
+const thoughtAuthoringRadius = 105;
+
+type ThoughtAuthoringVisual = {
+  id: string;
+  bubble: Container;
+  preview: Text | null;
+  shadowFilter?: DropShadowFilter;
+  position: Point;
+  phase: ThoughtAuthoringPresentation['phase'];
+  elapsed: number;
+  duration: number;
+  fromAlpha: number;
+  toAlpha: number;
+  fromScale: number;
+  toScale: number;
+  elevation: number;
+  fromElevation: number;
+  toElevation: number;
+  fromY: number;
+  toY: number;
+};
 
 export class SpatialFieldScene extends Container {
   private readonly ambient = new AmbientBubbleField();
@@ -75,6 +114,7 @@ export class SpatialFieldScene extends Container {
   private clusterOutlineTargetAlpha = 0;
   private readonly bonds = new Container();
   private readonly thoughts = new Container();
+  private readonly authoring = new Container();
   private readonly activeBonds = new Map<string, ActiveBond>();
   private readonly thoughtBubbles = new Map<string, ThoughtBubbleRecord>();
   private readonly fadingThoughts = new Map<
@@ -86,6 +126,7 @@ export class SpatialFieldScene extends Container {
     { graphic: Graphics; elapsed: number }
   >();
   private hasRendered = false;
+  private authoringVisual: ThoughtAuthoringVisual | null = null;
   constructor(
     private readonly onThoughtPointerDown: ThoughtPointerDown = () => {},
     private readonly createThoughtShadowFilter?: ThoughtShadowFilterFactory,
@@ -93,7 +134,104 @@ export class SpatialFieldScene extends Container {
     super();
     this.clusterOutline.alpha = 0;
     this.foreground.addChild(this.clusterOutline, this.bonds, this.thoughts);
-    this.addChild(this.ambient, this.bondFades, this.foreground);
+    this.authoring.eventMode = 'none';
+    this.addChild(this.ambient, this.bondFades, this.foreground, this.authoring);
+  }
+
+  presentAuthoring(presentation?: ThoughtAuthoringPresentation) {
+    if (!presentation) {
+      this.authoring.removeChildren();
+      this.authoringVisual?.bubble.destroy({ children: true });
+      this.authoringVisual?.preview?.destroy();
+      this.authoringVisual = null;
+      return;
+    }
+
+    let visual = this.authoringVisual;
+    if (!visual || visual.id !== presentation.id) {
+      visual?.bubble.destroy({ children: true });
+      visual?.preview?.destroy();
+      const created = createAuthoringBubble(
+        presentation.tone,
+        this.createThoughtShadowFilter,
+        presentation.elevation.source,
+      );
+      const sourceY =
+        presentation.position.y -
+        thoughtRise * presentation.elevation.source * presentation.elevation.zoom;
+      created.bubble.position.set(presentation.position.x, sourceY);
+      created.bubble.scale.set(presentation.openScale);
+      created.bubble.alpha = 0.3;
+      this.authoring.removeChildren();
+      this.authoring.addChild(created.bubble);
+      visual = {
+        id: presentation.id,
+        ...created,
+        preview: null,
+        position: { ...presentation.position },
+        phase: 'open',
+        elapsed: 0,
+        duration: thoughtAuthoringOpenDuration,
+        fromAlpha: 0.3,
+        toAlpha: 1,
+        fromScale: presentation.openScale,
+        toScale: 1,
+        elevation: presentation.elevation.source,
+        fromElevation: presentation.elevation.source,
+        toElevation: 1,
+        fromY: sourceY,
+        toY: presentation.position.y,
+      };
+      this.authoringVisual = visual;
+    }
+
+    const positionDelta = {
+      x: presentation.position.x - visual.position.x,
+      y: presentation.position.y - visual.position.y,
+    };
+    visual.position = { ...presentation.position };
+    visual.bubble.position.x += positionDelta.x;
+    visual.bubble.position.y += positionDelta.y;
+    visual.fromY += positionDelta.y;
+    visual.toY += positionDelta.y;
+    if (visual.preview) {
+      visual.preview.position.x += positionDelta.x;
+      visual.preview.position.y += positionDelta.y;
+    }
+    if (visual.phase === presentation.phase) return;
+    visual.phase = presentation.phase;
+    visual.elapsed = 0;
+    visual.fromAlpha = visual.bubble.alpha;
+    visual.fromScale = visual.bubble.scale.x;
+    visual.fromElevation = visual.elevation;
+    visual.fromY = visual.bubble.y;
+    visual.duration =
+      presentation.phase === 'cancel-dismiss'
+        ? thoughtAuthoringDismissDuration
+        : thoughtAuthoringCloseDuration;
+    visual.toAlpha =
+      presentation.phase === 'cancel-dismiss' ? 0 : thoughtAppearanceStartAlpha;
+    visual.toScale =
+      presentation.phase === 'cancel-dismiss' ? 0.82 : presentation.closeScale;
+    visual.toElevation =
+      presentation.phase === 'cancel-dismiss' ? 1 : presentation.elevation.target;
+    visual.toY =
+      presentation.position.y -
+      (presentation.phase === 'cancel-dismiss'
+        ? 0
+        : thoughtRise * presentation.elevation.target * presentation.elevation.zoom);
+    visual.preview?.removeFromParent();
+    visual.preview?.destroy();
+    visual.preview = null;
+    if (presentation.phase !== 'cancel-dismiss' && presentation.text) {
+      const radius = thoughtRadius(presentation.text);
+      const preview = createThoughtLabel(presentation.text, radius);
+      preview.position.set(presentation.position.x, visual.toY);
+      preview.scale.set((presentation.closeScale * thoughtAuthoringRadius) / radius);
+      preview.alpha = 0;
+      this.authoring.addChild(preview);
+      visual.preview = preview;
+    }
   }
 
   render(
@@ -208,6 +346,45 @@ export class SpatialFieldScene extends Container {
   }
 
   advanceAnimations(deltaMs: number) {
+    const authoringVisual = this.authoringVisual;
+    if (authoringVisual && authoringVisual.elapsed < authoringVisual.duration) {
+      authoringVisual.elapsed = Math.min(
+        authoringVisual.duration,
+        authoringVisual.elapsed + deltaMs,
+      );
+      const progress = authoringVisual.elapsed / authoringVisual.duration;
+      const eased =
+        authoringVisual.phase === 'open'
+          ? 1 - (1 - progress) ** 3
+          : authoringVisual.phase === 'cancel-dismiss'
+            ? progress ** 3
+            : standardEase(progress);
+      authoringVisual.bubble.alpha = interpolate(
+        authoringVisual.fromAlpha,
+        authoringVisual.toAlpha,
+        eased,
+      );
+      authoringVisual.bubble.scale.set(
+        interpolate(authoringVisual.fromScale, authoringVisual.toScale, eased),
+      );
+      authoringVisual.bubble.y = interpolate(
+        authoringVisual.fromY,
+        authoringVisual.toY,
+        eased,
+      );
+      authoringVisual.elevation = interpolate(
+        authoringVisual.fromElevation,
+        authoringVisual.toElevation,
+        eased,
+      );
+      if (authoringVisual.shadowFilter) {
+        applyThoughtElevation(authoringVisual.shadowFilter, authoringVisual.elevation);
+      }
+      if (authoringVisual.preview) {
+        authoringVisual.preview.alpha = thoughtAppearanceStartAlpha * eased;
+      }
+    }
+
     if (this.clusterOutline.alpha !== this.clusterOutlineTargetAlpha) {
       const direction = Math.sign(
         this.clusterOutlineTargetAlpha - this.clusterOutline.alpha,
@@ -361,6 +538,7 @@ export type MountedSpatialFieldScene = {
   canvas: HTMLCanvasElement;
   screen: { width: number; height: number };
   render: (settings?: AmbientBubbleSettings, hiddenThoughtId?: string) => void;
+  presentAuthoring: (presentation?: ThoughtAuthoringPresentation) => void;
   onResize: (listener: () => void) => () => void;
   destroy: () => void;
 };
@@ -410,6 +588,9 @@ export async function mountSpatialFieldScene(
         hiddenThoughtId,
       );
     },
+    presentAuthoring(presentation) {
+      scene.presentAuthoring(presentation);
+    },
     onResize(listener) {
       app.renderer.on('resize', listener);
       return () => app.renderer.off('resize', listener);
@@ -419,6 +600,19 @@ export async function mountSpatialFieldScene(
       app.destroy(true, { children: true });
     },
   };
+}
+
+function createAuthoringBubble(
+  tone: number,
+  createShadowFilter?: ThoughtShadowFilterFactory,
+  elevation = 1,
+) {
+  const bubble = new Container();
+  const body = createThoughtBody(thoughtAuthoringRadius, tone);
+  const shadowFilter = createShadowFilter?.(elevation);
+  if (shadowFilter) body.filters = [shadowFilter];
+  bubble.addChild(body);
+  return { bubble, shadowFilter };
 }
 
 function createThoughtBubble(
@@ -437,35 +631,14 @@ function createThoughtBubble(
     contains: (x: number, y: number) => x * x + y * y <= radius * radius,
   };
 
-  const body = new Graphics()
-    .circle(0, 0, radius)
-    .fill({ color: getThoughtTone(thought.tone).canvas, alpha: 0.96 })
-    .circle(-radius * 0.22, -radius * 0.24, radius * 0.66)
-    .fill({ color: 0xffffff, alpha: 0.15 })
-    .circle(0, 0, radius - 1)
-    .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
+  const body = createThoughtBody(radius, thought.tone);
   const shadowFilter = createShadowFilter?.(elevation);
   if (shadowFilter) {
     applyThoughtElevation(shadowFilter, elevation);
     body.filters = [shadowFilter];
   }
 
-  let textStyle: TextStyle | null = null;
-  const textLayout = layoutThoughtText({
-    text: thought.text,
-    radius,
-    measureText: (text, style) => {
-      textStyle ??= new TextStyle(style);
-      return CanvasTextMetrics.measureText(text, textStyle, undefined, false).width;
-    },
-  });
-  textStyle ??= new TextStyle(textLayout.style);
-  const label = new Text({
-    text: textLayout.text,
-    autoGenerateMipmaps: true,
-    style: textStyle,
-  });
-  label.anchor.set(0.5);
+  const label = createThoughtLabel(thought.text, radius);
   const cachedVisual = new Container();
   cachedVisual.y = -thoughtRise * elevation;
   if (shadowFilter) {
@@ -488,6 +661,36 @@ function createThoughtBubble(
     bubble.cursor = 'grabbing';
   });
   return { bubble, cachedVisual, shadowFilter };
+}
+
+function createThoughtLabel(text: string, radius: number) {
+  let textStyle: TextStyle | null = null;
+  const textLayout = layoutThoughtText({
+    text,
+    radius,
+    measureText: (value, style) => {
+      textStyle ??= new TextStyle(style);
+      return CanvasTextMetrics.measureText(value, textStyle, undefined, false).width;
+    },
+  });
+  textStyle ??= new TextStyle(textLayout.style);
+  const label = new Text({
+    text: textLayout.text,
+    autoGenerateMipmaps: true,
+    style: textStyle,
+  });
+  label.anchor.set(0.5);
+  return label;
+}
+
+function createThoughtBody(radius: number, tone: number) {
+  return new Graphics()
+    .circle(0, 0, radius)
+    .fill({ color: getThoughtTone(tone).canvas, alpha: 0.96 })
+    .circle(-radius * 0.22, -radius * 0.24, radius * 0.66)
+    .fill({ color: 0xffffff, alpha: 0.15 })
+    .circle(0, 0, radius - 1)
+    .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
 }
 
 function createThoughtShadowFilter(elevation: number) {
@@ -612,6 +815,33 @@ function normalizeSettings(settings: AmbientBubbleSettings): AmbientBubbleSettin
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function interpolate(from: number, to: number, progress: number) {
+  return from + (to - from) * progress;
+}
+
+// Matches CSS cubic-bezier(0.4, 0, 0.2, 1) for a seamless DOM/Pixi handoff.
+function standardEase(progress: number) {
+  if (progress <= 0) return 0;
+  if (progress >= 1) return 1;
+  const sample = (time: number, first: number, second: number) => {
+    const inverse = 1 - time;
+    return (
+      3 * inverse * inverse * time * first +
+      3 * inverse * time * time * second +
+      time * time * time
+    );
+  };
+  let low = 0;
+  let high = 1;
+  let time = progress;
+  for (let index = 0; index < 12; index += 1) {
+    time = (low + high) / 2;
+    if (sample(time, 0.4, 0.2) < progress) low = time;
+    else high = time;
+  }
+  return sample(time, 0, 1);
 }
 
 function random(x: number, y: number, salt: number) {

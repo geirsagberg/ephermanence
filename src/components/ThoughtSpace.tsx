@@ -10,6 +10,7 @@ import { css, cx } from '../../styled-system/css';
 
 import {
   ambientBubbleSettingsAtom,
+  composerOpenAtom,
   editingThoughtIdAtom,
   fieldSnapshotAtom,
 } from '../appState';
@@ -43,6 +44,7 @@ export function ThoughtSpace({
 }: ThoughtSpaceProps) {
   const snapshot = useAtomValue(fieldSnapshotAtom);
   const editingThoughtId = useAtomValue(editingThoughtIdAtom);
+  const composerOpen = useAtomValue(composerOpenAtom);
   const ambientBubbleSettings = useAtomValue(ambientBubbleSettingsAtom);
   const hostRef = useRef<HTMLDivElement>(null);
   const getNewThoughtPosition = () => {
@@ -95,7 +97,7 @@ export function ThoughtSpace({
 
   return (
     <div ref={hostRef} className={cx(thoughtSpaceClass, className)}>
-      {selectedThought && selectedPosition && actionPositions && (
+      {!composerOpen && selectedThought && selectedPosition && actionPositions && (
         <Fragment key={selectedThought.id}>
           <button
             title="Edit thought"

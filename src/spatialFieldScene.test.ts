@@ -46,6 +46,10 @@ function fadingBonds(scene: SpatialFieldScene) {
   return scene.children[1] as Container;
 }
 
+function authoring(scene: SpatialFieldScene) {
+  return scene.children[3] as Container;
+}
+
 describe('spatial field scene', () => {
   it('defaults to the accepted subtle ambient field', () => {
     expect(defaultAmbientBubbleSettings).toEqual({
@@ -203,6 +207,83 @@ describe('spatial field scene', () => {
     expect(bubble.alpha).toBeLessThan(1);
     scene.advanceAnimations(40);
     expect(bubble.alpha).toBe(1);
+  });
+
+  it('animates authoring in screen space and closes to the persisted Thought scale', () => {
+    const scene = new SpatialFieldScene();
+    scene.presentAuthoring({
+      id: 'draft',
+      position: { x: 120, y: 240 },
+      tone: 1,
+      openScale: 0.5,
+      phase: 'open',
+      closeScale: 0.75,
+      elevation: { source: 1, target: 1, zoom: 1.5 },
+    });
+    const bubble = authoring(scene).children[0];
+
+    expect(bubble.position).toMatchObject({ x: 120, y: 237 });
+    expect(bubble.scale.x).toBe(0.5);
+    expect(bubble.alpha).toBeCloseTo(0.3);
+
+    scene.advanceAnimations(240);
+    expect(bubble.scale.x).toBe(1);
+    expect(bubble.alpha).toBe(1);
+    expect(bubble.y).toBe(240);
+
+    scene.presentAuthoring({
+      id: 'draft',
+      position: { x: 120, y: 240 },
+      tone: 1,
+      openScale: 0.5,
+      phase: 'keep',
+      closeScale: 0.75,
+      text: 'Crossfade',
+      elevation: { source: 1, target: 1, zoom: 1.5 },
+    });
+    scene.advanceAnimations(100);
+
+    const preview = authoring(scene).children[1];
+    expect(bubble.scale.x).toBeGreaterThan(0.8);
+    expect(bubble.scale.x).toBeLessThan(0.82);
+    expect(bubble.alpha).toBeGreaterThan(0.76);
+    expect(bubble.alpha).toBeLessThan(0.78);
+    expect(preview.alpha).toBeGreaterThan(0.53);
+    expect(preview.alpha).toBeLessThan(0.55);
+
+    scene.advanceAnimations(100);
+
+    expect(bubble.scale.x).toBe(0.75);
+    expect(bubble.alpha).toBeCloseTo(0.7);
+    expect(bubble.y).toBe(237);
+    expect(preview.alpha).toBe(0.7);
+    expect(preview.y).toBe(237);
+
+    scene.presentAuthoring();
+    expect(authoring(scene).children).toHaveLength(0);
+  });
+
+  it('hands a bonded authoring bubble back at resting elevation', () => {
+    const filter = { padding: 46, offsetX: 0, offsetY: 0, alpha: 0, blur: 0 };
+    const scene = new SpatialFieldScene(undefined, () => filter as never);
+    const opening = {
+      id: 'bonded-draft',
+      position: { x: 80, y: 160 },
+      tone: 0,
+      openScale: 0.6,
+      phase: 'open' as const,
+      closeScale: 0.6,
+      elevation: { source: 0, target: 0, zoom: 2 },
+    };
+    scene.presentAuthoring(opening);
+    scene.advanceAnimations(240);
+    expect(filter).toMatchObject({ offsetY: 10, alpha: 0.18, blur: 11 });
+
+    scene.presentAuthoring({ ...opening, phase: 'cancel-close' });
+    scene.advanceAnimations(200);
+
+    expect(authoring(scene).children[0].y).toBe(160);
+    expect(filter).toMatchObject({ offsetY: 5, alpha: 0.1, blur: 8 });
   });
 
   it('reuses a Thought display object while drawing its contact outline behind it', () => {

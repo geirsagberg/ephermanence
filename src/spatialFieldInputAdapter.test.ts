@@ -44,6 +44,7 @@ function createHarness(thoughts: Thought[] = [], attachments: [string, string][]
   const events = new FakeEventSource();
   const canvas = new FakeEventSource();
   const render = vi.fn();
+  const presentAuthoring = vi.fn();
   const destroy = vi.fn();
   let onThoughtPointerDown:
     | ((
@@ -58,6 +59,7 @@ function createHarness(thoughts: Thought[] = [], attachments: [string, string][]
     canvas: canvas as never,
     screen: { width: 1000, height: 800 },
     render,
+    presentAuthoring,
     onResize(listener) {
       resizeListener = listener;
       return () => {
@@ -100,6 +102,7 @@ function createHarness(thoughts: Thought[] = [], attachments: [string, string][]
     canvas,
     scene,
     render,
+    presentAuthoring,
     destroy,
     onFrame,
     onFailure,
@@ -157,6 +160,31 @@ function nativePointer(overrides: object = {}) {
 describe('spatial field input adapter', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
+
+  it('presents authoring state sent before and after the Pixi scene mounts', async () => {
+    const harness = createHarness();
+    const opening = {
+      id: 'draft',
+      position: { x: 120, y: 240 },
+      tone: 0,
+      openScale: 0.25,
+      phase: 'open' as const,
+      closeScale: 0.25,
+      elevation: { source: 0, target: 1, zoom: 1 },
+    };
+    harness.adapter.send({ type: 'present-authoring', presentation: opening });
+
+    const cleanup = await mount(harness);
+    expect(harness.presentAuthoring).toHaveBeenCalledWith(opening);
+
+    const closing = { ...opening, phase: 'keep' as const, closeScale: 0.7 };
+    harness.adapter.send({ type: 'present-authoring', presentation: closing });
+    expect(harness.presentAuthoring).toHaveBeenLastCalledWith(closing);
+
+    harness.adapter.send({ type: 'present-authoring' });
+    expect(harness.presentAuthoring).toHaveBeenLastCalledWith(undefined);
+    cleanup();
+  });
 
   it('renders input immediately while coalescing React frames', async () => {
     const harness = createHarness();

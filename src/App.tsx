@@ -1,5 +1,5 @@
 import { Provider, useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { css } from '../styled-system/css';
 
 import {
@@ -11,6 +11,7 @@ import {
 import {
   defaultAmbientBubbleSettings,
   type AmbientBubbleSettings,
+  type ThoughtAuthoringPresentation,
 } from './spatialFieldScene';
 import {
   ambientBubblePresets,
@@ -26,7 +27,7 @@ import {
 } from './spatialFieldInputAdapter';
 import type { SpaceStorage } from './spaceStorage';
 import { createThoughtAuthoring, type ThoughtAuthoringState } from './thoughtAuthoring';
-import { getThoughtTone } from './thoughtTone';
+import { hasThoughtAttachment } from './thoughtActions';
 import { thoughtRadius } from './thoughtTextLayout';
 import { composerScaleForThought } from './thoughtTransition';
 
@@ -96,18 +97,30 @@ function ConnectedSpatialThoughtComposer({ runtime }: { runtime: AppRuntime }) {
     if (activeState) setRetainedState(activeState);
   }, [activeState]);
   const displayedState = activeState ?? retainedState;
-  const zoom = runtime.interaction.read().camera.zoom;
+  const interactionSnapshot = runtime.interaction.read();
+  const zoom = interactionSnapshot.camera.zoom;
+  const editingThought =
+    displayedState?.mode === 'editing'
+      ? interactionSnapshot.state.thoughts.find(({ id }) => id === displayedState.id)
+      : undefined;
   const editingRadius =
     displayedState?.mode === 'editing'
-      ? thoughtRadius(
-          runtime.interaction
-            .read()
-            .state.thoughts.find(({ id }) => id === displayedState.id)?.text ?? '',
-        )
+      ? thoughtRadius(editingThought?.text ?? '')
       : undefined;
+  const editingElevation =
+    editingThought &&
+    !hasThoughtAttachment(editingThought.id, interactionSnapshot.state.attachments)
+      ? 1
+      : 0;
+  const presentAuthoring = useCallback(
+    (presentation?: ThoughtAuthoringPresentation) =>
+      runtime.fieldInput.send({ type: 'present-authoring', presentation }),
+    [runtime.fieldInput],
+  );
   return displayedState ? (
     <SpatialThoughtComposer
       key={displayedState.mode === 'editing' ? displayedState.id : 'new'}
+      visualId={displayedState.mode === 'editing' ? displayedState.id : 'new'}
       dismissOnCancel={displayedState.mode === 'creating'}
       cancelTargetScale={
         editingRadius === undefined
@@ -125,7 +138,13 @@ function ConnectedSpatialThoughtComposer({ runtime }: { runtime: AppRuntime }) {
         displayedState.mode === 'editing' ? displayedState.initialText : undefined
       }
       label={displayedState.mode === 'editing' ? 'Edit thought' : undefined}
-      toneColor={getThoughtTone(displayedState.tone).css}
+      tone={displayedState.tone}
+      elevation={{
+        source: displayedState.mode === 'editing' ? editingElevation : 0,
+        target: displayedState.mode === 'editing' ? editingElevation : 1,
+        zoom,
+      }}
+      onVisualChange={presentAuthoring}
       onCancel={() => sendToAuthoring({ type: 'cancel' })}
       onExitComplete={() => setRetainedState(null)}
       onKeep={(text) => sendToAuthoring({ type: 'keep', text })}

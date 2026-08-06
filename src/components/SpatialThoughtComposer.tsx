@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { css } from '../../styled-system/css';
+import type { ThoughtAuthoringPresentation } from '../spatialFieldScene';
 
 export type DraftPosition = { x: number; y: number };
 
@@ -11,11 +12,14 @@ type SpatialThoughtComposerProps = {
   position: DraftPosition;
   initialText?: string;
   label?: string;
+  visualId: string;
+  tone: number;
+  elevation: ThoughtAuthoringPresentation['elevation'];
   onCancel: () => void;
   onExitComplete: () => void;
   onKeep: (text: string) => void;
+  onVisualChange: (presentation?: ThoughtAuthoringPresentation) => void;
   targetScaleForText: (text: string) => number;
-  toneColor: string;
 };
 
 export function SpatialThoughtComposer({
@@ -25,11 +29,14 @@ export function SpatialThoughtComposer({
   position,
   initialText = '',
   label = 'New thought at this position',
+  visualId,
+  tone,
+  elevation,
   onCancel,
   onExitComplete,
   onKeep,
+  onVisualChange,
   targetScaleForText,
-  toneColor,
 }: SpatialThoughtComposerProps) {
   const [text, setText] = useState(initialText);
   const [exit, setExit] = useState<'cancel-close' | 'cancel-dismiss' | 'keep' | null>(
@@ -39,6 +46,7 @@ export function SpatialThoughtComposer({
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const savedRef = useRef(false);
+  const pendingTextRef = useRef('');
 
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
@@ -48,22 +56,58 @@ export function SpatialThoughtComposer({
     textarea.setSelectionRange(end, end);
   }, []);
 
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = '0';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 112)}px`;
+  }, [text]);
+
+  useLayoutEffect(() => {
+    onVisualChange({
+      id: visualId,
+      position,
+      tone,
+      openScale,
+      phase: exit ?? 'open',
+      closeScale,
+      text:
+        exit === 'keep'
+          ? pendingTextRef.current
+          : exit === 'cancel-close'
+            ? initialText
+            : undefined,
+      elevation,
+    });
+  }, [
+    closeScale,
+    elevation,
+    exit,
+    initialText,
+    onVisualChange,
+    openScale,
+    position,
+    tone,
+    visualId,
+  ]);
+
+  useLayoutEffect(() => () => onVisualChange(), [onVisualChange]);
+
   const keep = useCallback(() => {
     const next = text.trim();
     if (!next || savedRef.current) return;
     savedRef.current = true;
+    pendingTextRef.current = next;
     setCloseScale(targetScaleForText(next));
     setExit('keep');
-    onKeep(next);
-  }, [onKeep, targetScaleForText, text]);
+  }, [targetScaleForText, text]);
 
   const cancel = useCallback(() => {
     if (savedRef.current) return;
     savedRef.current = true;
     if (!dismissOnCancel) setCloseScale(cancelTargetScale);
     setExit(dismissOnCancel ? 'cancel-dismiss' : 'cancel-close');
-    onCancel();
-  }, [cancelTargetScale, dismissOnCancel, onCancel]);
+  }, [cancelTargetScale, dismissOnCancel]);
 
   useEffect(() => {
     if (!exit) return;
@@ -100,21 +144,20 @@ export function SpatialThoughtComposer({
         {
           left: position.x,
           top: position.y,
-          '--thought-tone': toneColor,
           '--composer-open-scale': openScale,
           '--composer-close-scale': closeScale,
         } as CSSProperties &
-          Record<
-            '--thought-tone' | '--composer-open-scale' | '--composer-close-scale',
-            string | number
-          >
+          Record<'--composer-open-scale' | '--composer-close-scale', string | number>
       }
       onSubmit={(event) => {
         event.preventDefault();
         keep();
       }}
       onAnimationEnd={() => {
-        if (exit) onExitComplete();
+        if (!exit) return;
+        if (exit === 'keep') onKeep(pendingTextRef.current);
+        else onCancel();
+        onExitComplete();
       }}
     >
       <textarea
@@ -137,7 +180,7 @@ export function SpatialThoughtComposer({
         }}
         placeholder="A thought…"
         maxLength={220}
-        rows={4}
+        rows={1}
         aria-label={label}
       />
     </form>
@@ -151,11 +194,10 @@ const composerClass = css({
   width: '210px',
   height: '210px',
   placeItems: 'center',
-  padding: '38px 28px 30px',
-  border: '1px solid rgb(255 255 255 / 70%)',
+  padding: '28px',
+  border: 0,
   borderRadius: '50%',
-  background: 'color-mix(in srgb, var(--thought-tone) 96%, transparent)',
-  boxShadow: '0 14px 38px rgb(62 67 61 / 10%)',
+  background: 'transparent',
   transform: 'translate(-50%, -50%)',
   animation: 'composerBloom 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
   '&[data-exit]': {
@@ -165,11 +207,12 @@ const composerClass = css({
     animation: 'composerDismiss 180ms ease-in both',
   },
   '&[data-exit="cancel-close"], &[data-exit="keep"]': {
-    animation: 'composerClose 200ms cubic-bezier(0.4, 0, 0.8, 0.2) both',
+    animation: 'composerClose 200ms cubic-bezier(0.4, 0, 0.2, 1) both',
   },
   '& textarea': {
     width: '100%',
-    height: '90px',
+    height: 'auto',
+    maxHeight: '112px',
     padding: 0,
     border: 0,
     background: 'transparent',

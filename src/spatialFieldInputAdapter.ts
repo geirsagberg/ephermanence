@@ -1,6 +1,7 @@
 import type {
   AmbientBubbleSettings,
   MountedSpatialFieldScene,
+  ThoughtAuthoringPresentation,
 } from './spatialFieldScene';
 import {
   defaultAmbientBubbleSettings,
@@ -36,6 +37,7 @@ export type ThoughtControlEvent = {
 
 export type SpatialFieldAdapterInput =
   | { type: 'present'; presentation: SpatialFieldPresentation }
+  | { type: 'present-authoring'; presentation?: ThoughtAuthoringPresentation }
   | { type: 'authoring-command'; command: ThoughtAuthoringCommand }
   | { type: 'launcher-open'; point: Point }
   | {
@@ -108,6 +110,7 @@ export function createSpatialFieldInputAdapter({
   };
   let renderedPresentation: SpatialFieldPresentation | null = null;
   let renderedSnapshot: SpatialInteractionSnapshot | null = null;
+  let authoringPresentation: ThoughtAuthoringPresentation | undefined;
   let activation: Activation | null = null;
   const pointerGestures = new Map<number, PointerGesture>();
   let suppressDoubleClick = false;
@@ -467,6 +470,7 @@ export function createSpatialFieldInputAdapter({
             return;
           }
           scene = mountedScene;
+          scene.presentAuthoring(authoringPresentation);
           detachListeners = attachListeners(mountedScene);
           if (
             renderedSnapshot !== interaction.read() ||
@@ -484,6 +488,11 @@ export function createSpatialFieldInputAdapter({
       return () => unmount(generation);
     },
     send(input) {
+      if (input.type === 'present-authoring') {
+        authoringPresentation = input.presentation;
+        scene?.presentAuthoring(authoringPresentation);
+        return;
+      }
       if (input.type === 'present') {
         if (samePresentation(presentation, input.presentation)) return;
         presentation = input.presentation;

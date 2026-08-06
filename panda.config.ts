@@ -71,7 +71,7 @@ export default defineConfig({
             transform: 'translate(-50%, -50%) scale(1)',
           },
           to: {
-            opacity: 0.3,
+            opacity: 0,
             transform: 'translate(-50%, -50%) scale(var(--composer-close-scale))',
           },
         },
