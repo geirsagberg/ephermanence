@@ -1,9 +1,48 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite-plus';
+import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: '/ephermanence/',
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      manifest: {
+        name: 'Ephermanence',
+        short_name: 'Ephermanence',
+        description: 'A calm workbench for unfinished thoughts.',
+        id: '/ephermanence/',
+        start_url: '/ephermanence/',
+        scope: '/ephermanence/',
+        display: 'standalone',
+        background_color: '#ebe8df',
+        theme_color: '#ebe8df',
+        icons: [
+          {
+            src: 'icons/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: 'icons/pwa-maskable-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        cleanupOutdatedCaches: true,
+        globPatterns: ['**/*.{css,html,js,png,svg,woff2}'],
+      },
+    }),
+  ],
   fmt: {
     printWidth: 90,
     semi: true,
