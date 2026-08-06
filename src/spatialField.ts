@@ -235,7 +235,7 @@ function bringThoughtToFrontWhenAlone(
   return attached ? thoughts : bringThoughtToFront(thoughts, id);
 }
 
-function thoughtRadius(text: string) {
+export function thoughtRadius(text: string) {
   const min = 64;
   const max = 128;
   const radius = 60 + text.length * 0.35;

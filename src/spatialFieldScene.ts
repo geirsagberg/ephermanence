@@ -1,3 +1,4 @@
+import { DropShadowFilter } from 'pixi-filters/drop-shadow';
 import {
   Application,
   Container,
@@ -7,13 +8,12 @@ import {
   type FederatedPointerEvent,
   type Ticker,
 } from 'pixi.js';
-import { DropShadowFilter } from 'pixi-filters/drop-shadow';
 
+import { connectedThoughtIds, type Point } from './spatialField';
 import type {
   SpatialInteraction,
   SpatialInteractionSnapshot,
 } from './spatialInteraction';
-import { connectedThoughtIds, type Point } from './spatialField';
 import { getThoughtTone } from './thoughtTone';
 
 export type WorldBounds = {
@@ -48,6 +48,7 @@ type ThoughtBubbleRecord = {
   bubble: Container;
   cachedVisual: Container;
   shadowFilter?: DropShadowFilter;
+  appearance: number;
   elevation: number;
   targetElevation: number;
   text: string;
@@ -58,6 +59,8 @@ type ThoughtBubbleRecord = {
 const bondFadeDuration = 240;
 const clusterOutlineFadeDuration = 180;
 const thoughtFadeDuration = 180;
+const thoughtAppearanceDuration = 80;
+const thoughtAppearanceStartAlpha = 0.7;
 const thoughtElevationDuration = 220;
 const thoughtRise = 2;
 const maxThoughtShadowPadding = 46;
@@ -80,7 +83,7 @@ export class SpatialFieldScene extends Container {
     string,
     { graphic: Graphics; elapsed: number }
   >();
-
+  private hasRendered = false;
   constructor(
     private readonly onThoughtPointerDown: ThoughtPointerDown = () => {},
     private readonly createThoughtShadowFilter?: ThoughtShadowFilterFactory,
@@ -164,12 +167,14 @@ export class SpatialFieldScene extends Container {
         );
         record = {
           ...created,
+          appearance: this.hasRendered ? 0 : 1,
           elevation: targetElevation,
           targetElevation,
           text: thought.text,
           radius: thought.radius,
           tone: thought.tone,
         };
+        applyThoughtAppearance(record.bubble, record.appearance);
         this.thoughtBubbles.set(thought.id, record);
       }
       record.targetElevation = targetElevation;
@@ -192,6 +197,7 @@ export class SpatialFieldScene extends Container {
     for (const fading of this.fadingThoughts.values()) {
       this.thoughts.addChild(fading.bubble);
     }
+    this.hasRendered = true;
   }
 
   advanceAnimations(deltaMs: number) {
@@ -236,6 +242,13 @@ export class SpatialFieldScene extends Container {
 
     const elevationStep = deltaMs / thoughtElevationDuration;
     for (const record of this.thoughtBubbles.values()) {
+      if (record.appearance < 1) {
+        record.appearance = Math.min(
+          1,
+          record.appearance + deltaMs / thoughtAppearanceDuration,
+        );
+        applyThoughtAppearance(record.bubble, record.appearance);
+      }
       if (record.elevation === record.targetElevation) continue;
       const direction = Math.sign(record.targetElevation - record.elevation);
       record.elevation = Math.max(
@@ -303,6 +316,11 @@ function sameThoughtVisual(
     record.radius === thought.radius &&
     record.tone === thought.tone
   );
+}
+
+function applyThoughtAppearance(bubble: Container, progress: number) {
+  const eased = 1 - (1 - progress) ** 3;
+  bubble.alpha = thoughtAppearanceStartAlpha + (1 - thoughtAppearanceStartAlpha) * eased;
 }
 
 function sameBondGeometry(left: BondGeometry, right: BondGeometry) {

@@ -186,6 +186,30 @@ describe('spatial field scene', () => {
     expect(renderedThought.x).toBe(40);
   });
 
+  it('quickly fades in a Thought that appears after the initial render', () => {
+    const scene = new SpatialFieldScene();
+    const appearing = {
+      id: 'appearing',
+      text: 'Appearing',
+      x: 0,
+      y: 0,
+      radius: 74,
+      tone: 0,
+    };
+    scene.render(snapshot(), viewport);
+
+    scene.render(snapshot({ thoughts: [appearing], attachments: [] }), viewport);
+    const bubble = thoughts(scene).children[0];
+
+    expect(bubble.alpha).toBeCloseTo(0.7);
+    expect(bubble.scale.x).toBe(1);
+    scene.advanceAnimations(40);
+    expect(bubble.alpha).toBeGreaterThan(0.7);
+    expect(bubble.alpha).toBeLessThan(1);
+    scene.advanceAnimations(40);
+    expect(bubble.alpha).toBe(1);
+  });
+
   it('reuses a Thought display object while drawing its contact outline behind it', () => {
     const scene = new SpatialFieldScene();
     const thought = {

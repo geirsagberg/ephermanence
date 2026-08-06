@@ -58,11 +58,21 @@ export default defineConfig({
         composerBloom: {
           from: {
             opacity: 0.3,
-            transform: 'translate(-50%, -50%) scale(0.25)',
+            transform: 'translate(-50%, -50%) scale(var(--composer-open-scale))',
           },
           to: {
             opacity: 1,
             transform: 'translate(-50%, -50%) scale(1)',
+          },
+        },
+        composerClose: {
+          from: {
+            opacity: 1,
+            transform: 'translate(-50%, -50%) scale(1)',
+          },
+          to: {
+            opacity: 0.3,
+            transform: 'translate(-50%, -50%) scale(var(--composer-close-scale))',
           },
         },
         composerDismiss: {

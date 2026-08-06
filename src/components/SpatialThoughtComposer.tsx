@@ -5,26 +5,37 @@ import { css } from '../../styled-system/css';
 export type DraftPosition = { x: number; y: number };
 
 type SpatialThoughtComposerProps = {
-  fadeOnCancel?: boolean;
+  dismissOnCancel?: boolean;
+  cancelTargetScale?: number;
+  openScale?: number;
   position: DraftPosition;
   initialText?: string;
   label?: string;
   onCancel: () => void;
+  onExitComplete: () => void;
   onKeep: (text: string) => void;
+  targetScaleForText: (text: string) => number;
   toneColor: string;
 };
 
 export function SpatialThoughtComposer({
-  fadeOnCancel = false,
+  dismissOnCancel = false,
+  cancelTargetScale = 0.25,
+  openScale = 0.25,
   position,
   initialText = '',
   label = 'New thought at this position',
   onCancel,
+  onExitComplete,
   onKeep,
+  targetScaleForText,
   toneColor,
 }: SpatialThoughtComposerProps) {
   const [text, setText] = useState(initialText);
-  const [canceling, setCanceling] = useState(false);
+  const [exit, setExit] = useState<'cancel-close' | 'cancel-dismiss' | 'keep' | null>(
+    null,
+  );
+  const [closeScale, setCloseScale] = useState(0.25);
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const savedRef = useRef(false);
@@ -41,35 +52,38 @@ export function SpatialThoughtComposer({
     const next = text.trim();
     if (!next || savedRef.current) return;
     savedRef.current = true;
+    setCloseScale(targetScaleForText(next));
+    setExit('keep');
     onKeep(next);
-  }, [onKeep, text]);
+  }, [onKeep, targetScaleForText, text]);
 
   const cancel = useCallback(() => {
     if (savedRef.current) return;
     savedRef.current = true;
-    if (fadeOnCancel) setCanceling(true);
-    else onCancel();
-  }, [fadeOnCancel, onCancel]);
+    if (!dismissOnCancel) setCloseScale(cancelTargetScale);
+    setExit(dismissOnCancel ? 'cancel-dismiss' : 'cancel-close');
+    onCancel();
+  }, [cancelTargetScale, dismissOnCancel, onCancel]);
 
   useEffect(() => {
-    if (!canceling) return;
+    if (!exit) return;
     const suppressClick = (event: MouseEvent) => {
       event.preventDefault();
       event.stopImmediatePropagation();
     };
     window.addEventListener('click', suppressClick, true);
     return () => window.removeEventListener('click', suppressClick, true);
-  }, [canceling]);
+  }, [exit]);
 
   useEffect(() => {
     const saveOnTapAway = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Node) || formRef.current?.contains(target)) return;
+      event.preventDefault();
+      event.stopPropagation();
       if (text.trim()) {
         keep();
       } else {
-        event.preventDefault();
-        event.stopPropagation();
         cancel();
       }
     };
@@ -81,20 +95,26 @@ export function SpatialThoughtComposer({
     <form
       ref={formRef}
       className={composerClass}
-      data-canceling={canceling || undefined}
+      data-exit={exit ?? undefined}
       style={
         {
           left: position.x,
           top: position.y,
           '--thought-tone': toneColor,
-        } as CSSProperties & Record<'--thought-tone', string>
+          '--composer-open-scale': openScale,
+          '--composer-close-scale': closeScale,
+        } as CSSProperties &
+          Record<
+            '--thought-tone' | '--composer-open-scale' | '--composer-close-scale',
+            string | number
+          >
       }
       onSubmit={(event) => {
         event.preventDefault();
         keep();
       }}
       onAnimationEnd={() => {
-        if (canceling) onCancel();
+        if (exit) onExitComplete();
       }}
     >
       <textarea
@@ -138,9 +158,14 @@ const composerClass = css({
   boxShadow: '0 14px 38px rgb(62 67 61 / 10%)',
   transform: 'translate(-50%, -50%)',
   animation: 'composerBloom 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
-  '&[data-canceling]': {
+  '&[data-exit]': {
     pointerEvents: 'none',
+  },
+  '&[data-exit="cancel-dismiss"]': {
     animation: 'composerDismiss 180ms ease-in both',
+  },
+  '&[data-exit="cancel-close"], &[data-exit="keep"]': {
+    animation: 'composerClose 200ms cubic-bezier(0.4, 0, 0.8, 0.2) both',
   },
   '& textarea': {
     width: '100%',

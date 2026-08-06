@@ -1,5 +1,5 @@
 import { Provider, useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { css } from '../styled-system/css';
 
 import {
@@ -19,14 +19,16 @@ import {
 import { SpatialThoughtComposer } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { spaceForQuery } from './initialSpace';
+import { thoughtRadius } from './spatialField';
 import { createSpatialInteraction } from './spatialInteraction';
 import {
   createSpatialFieldInputAdapter,
   type SpatialFieldInputAdapter,
 } from './spatialFieldInputAdapter';
 import type { SpaceStorage } from './spaceStorage';
-import { createThoughtAuthoring } from './thoughtAuthoring';
+import { createThoughtAuthoring, type ThoughtAuthoringState } from './thoughtAuthoring';
 import { getThoughtTone } from './thoughtTone';
+import { composerScaleForThought } from './thoughtTransition';
 
 function Wordmark() {
   return (
@@ -64,7 +66,7 @@ function AppView({ runtime }: { runtime: AppRuntime }) {
         />
       </main>
       {tuningAmbientBubbles && <ConnectedAmbientBubbleTuner />}
-      <ConnectedSpatialThoughtComposer />
+      <ConnectedSpatialThoughtComposer runtime={runtime} />
     </>
   );
 }
@@ -82,20 +84,48 @@ function ConnectedAmbientBubbleTuner() {
   );
 }
 
-function ConnectedSpatialThoughtComposer() {
+function ConnectedSpatialThoughtComposer({ runtime }: { runtime: AppRuntime }) {
   const authoringState = useAtomValue(thoughtAuthoringStateAtom);
   const sendToAuthoring = useSetAtom(sendThoughtAuthoringAtom);
-  return authoringState.mode !== 'idle' ? (
+  const activeState = authoringState.mode === 'idle' ? null : authoringState;
+  const [retainedState, setRetainedState] = useState<Exclude<
+    ThoughtAuthoringState,
+    { mode: 'idle' }
+  > | null>(activeState);
+  useEffect(() => {
+    if (activeState) setRetainedState(activeState);
+  }, [activeState]);
+  const displayedState = activeState ?? retainedState;
+  const zoom = runtime.interaction.read().camera.zoom;
+  const editingRadius =
+    displayedState?.mode === 'editing'
+      ? (runtime.interaction
+          .read()
+          .state.thoughts.find(({ id }) => id === displayedState.id)?.radius ?? 105)
+      : undefined;
+  return displayedState ? (
     <SpatialThoughtComposer
-      key={authoringState.mode === 'editing' ? authoringState.id : 'new'}
-      fadeOnCancel={authoringState.mode === 'creating'}
-      position={authoringState.screenPosition}
-      initialText={
-        authoringState.mode === 'editing' ? authoringState.initialText : undefined
+      key={displayedState.mode === 'editing' ? displayedState.id : 'new'}
+      dismissOnCancel={displayedState.mode === 'creating'}
+      cancelTargetScale={
+        editingRadius === undefined
+          ? undefined
+          : composerScaleForThought(editingRadius, zoom)
       }
-      label={authoringState.mode === 'editing' ? 'Edit thought' : undefined}
-      toneColor={getThoughtTone(authoringState.tone).css}
+      openScale={
+        editingRadius === undefined
+          ? undefined
+          : composerScaleForThought(editingRadius, zoom)
+      }
+      targetScaleForText={(text) => composerScaleForThought(thoughtRadius(text), zoom)}
+      position={displayedState.screenPosition}
+      initialText={
+        displayedState.mode === 'editing' ? displayedState.initialText : undefined
+      }
+      label={displayedState.mode === 'editing' ? 'Edit thought' : undefined}
+      toneColor={getThoughtTone(displayedState.tone).css}
       onCancel={() => sendToAuthoring({ type: 'cancel' })}
+      onExitComplete={() => setRetainedState(null)}
       onKeep={(text) => sendToAuthoring({ type: 'keep', text })}
     />
   ) : null;

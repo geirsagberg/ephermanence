@@ -78,6 +78,7 @@ type AdapterOptions = {
 };
 
 type Activation = { pointerId: number; start: Point };
+type PointerGesture = { distance: number; lastPoint: Point };
 type LongPress = {
   id: string;
   pointerId: number;
@@ -87,6 +88,7 @@ type LongPress = {
 };
 
 const actionMovementThreshold = 7;
+const gestureMovementThreshold = 4;
 const longPressMovementThreshold = 4;
 const longPressDelay = 450;
 const controlClickWindow = 750;
@@ -107,6 +109,8 @@ export function createSpatialFieldInputAdapter({
   let renderedPresentation: SpatialFieldPresentation | null = null;
   let renderedSnapshot: SpatialInteractionSnapshot | null = null;
   let activation: Activation | null = null;
+  const pointerGestures = new Map<number, PointerGesture>();
+  let suppressDoubleClick = false;
   let longPress: LongPress | null = null;
   let controlClickArmedAt: number | null = null;
   let frameHandle: number | null = null;
@@ -271,6 +275,9 @@ export function createSpatialFieldInputAdapter({
     singular: boolean,
     pointerId: number,
   ) => {
+    if (!pointerGestures.has(pointerId)) {
+      pointerGestures.set(pointerId, { distance: 0, lastPoint: point });
+    }
     dispatch({ type: 'thought-pointer-down', id, point, singular });
     if (singular) cancelLongPress();
     else beginLongPress(id, point, pointerId);
@@ -281,6 +288,14 @@ export function createSpatialFieldInputAdapter({
     const onMove = (event: PointerEvent) => {
       const rect = canvas.getBoundingClientRect();
       const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      const gesture = pointerGestures.get(event.pointerId);
+      if (gesture) {
+        gesture.distance += Math.hypot(
+          point.x - gesture.lastPoint.x,
+          point.y - gesture.lastPoint.y,
+        );
+        gesture.lastPoint = point;
+      }
       if (longPress?.pointerId === event.pointerId) {
         longPress.distance += Math.hypot(
           point.x - longPress.lastPoint.x,
@@ -298,6 +313,11 @@ export function createSpatialFieldInputAdapter({
     };
     const onUp = (event: PointerEvent) => {
       if (longPress?.pointerId === event.pointerId) cancelLongPress();
+      const gesture = pointerGestures.get(event.pointerId);
+      if (gesture?.distance && gesture.distance >= gestureMovementThreshold) {
+        suppressDoubleClick = true;
+      }
+      pointerGestures.delete(event.pointerId);
       dispatch({
         type: 'surface-pointer-up',
         pointerId: event.pointerId,
@@ -321,6 +341,11 @@ export function createSpatialFieldInputAdapter({
       });
     };
     const onDoubleClick = (event: MouseEvent) => {
+      if (suppressDoubleClick) {
+        suppressDoubleClick = false;
+        event.preventDefault();
+        return;
+      }
       const rect = canvas.getBoundingClientRect();
       dispatch({
         type: 'canvas-double-click',
@@ -330,11 +355,14 @@ export function createSpatialFieldInputAdapter({
     };
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
+      suppressDoubleClick = false;
       if (longPress && longPress.pointerId !== event.pointerId) cancelLongPress();
       const rect = canvas.getBoundingClientRect();
+      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      pointerGestures.set(event.pointerId, { distance: 0, lastPoint: point });
       const transition = dispatch({
         type: 'canvas-pointer-down',
-        point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+        point,
         pointerId: event.pointerId,
         pointerKind: event.pointerType,
       });
@@ -408,6 +436,8 @@ export function createSpatialFieldInputAdapter({
     detachListeners();
     detachListeners = () => {};
     cancelLongPress();
+    pointerGestures.clear();
+    suppressDoubleClick = false;
     activation = null;
     controlClickArmedAt = null;
     if (frameHandle !== null) runtime.cancelFrame(frameHandle);

@@ -197,6 +197,66 @@ describe('spatial field input adapter', () => {
     cleanup();
   });
 
+  it('does not edit after a double click turns into a drag', async () => {
+    const existing = thought('dragged', 0);
+    const harness = createHarness([existing]);
+    const cleanup = await mount(harness);
+    const start = harness.interaction.worldToScreen(existing);
+
+    harness.thoughtPointerDown(existing.id, start, false, 1);
+    harness.canvas.emit(
+      'pointerdown',
+      nativePointer({ clientX: start.x, clientY: start.y }),
+    );
+    harness.events.emit(
+      'pointerup',
+      nativePointer({ clientX: start.x, clientY: start.y }),
+    );
+
+    harness.thoughtPointerDown(existing.id, start, false, 1);
+    harness.canvas.emit(
+      'pointerdown',
+      nativePointer({ clientX: start.x, clientY: start.y }),
+    );
+    harness.events.emit(
+      'pointermove',
+      nativePointer({ clientX: start.x + 20, clientY: start.y }),
+    );
+    harness.events.emit(
+      'pointerup',
+      nativePointer({ clientX: start.x + 20, clientY: start.y }),
+    );
+    harness.canvas.emit('dblclick', {
+      clientX: start.x + 20,
+      clientY: start.y,
+      preventDefault: vi.fn(),
+    });
+    harness.flushFrame();
+
+    expect(harness.interaction.read().state.thoughts[0].x).toBe(20);
+    expect(harness.onFrame.mock.calls.at(-1)?.[0].effects).toEqual([]);
+    cleanup();
+  });
+
+  it('edits after a stationary double click', async () => {
+    const existing = thought('edited', 0);
+    const harness = createHarness([existing]);
+    const cleanup = await mount(harness);
+    const point = harness.interaction.worldToScreen(existing);
+
+    harness.canvas.emit('dblclick', {
+      clientX: point.x,
+      clientY: point.y,
+      preventDefault: vi.fn(),
+    });
+    harness.flushFrame();
+
+    expect(harness.onFrame.mock.calls.at(-1)?.[0].effects).toEqual([
+      { type: 'request-edit', thought: existing, screenPosition: point },
+    ]);
+    cleanup();
+  });
+
   it('prevents a touch Thought control from falling through to canvas tap-away', async () => {
     const existing = thought('selected', 0);
     const harness = createHarness([existing]);
