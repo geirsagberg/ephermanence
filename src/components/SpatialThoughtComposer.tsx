@@ -60,7 +60,9 @@ export function SpatialThoughtComposer({
     const textarea = textareaRef.current;
     if (!textarea) return;
     textarea.style.height = '0';
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 112)}px`;
+    const contentHeight = Math.ceil(textarea.scrollHeight);
+    textarea.style.height = `${Math.min(contentHeight, 112)}px`;
+    textarea.style.overflowY = contentHeight > 112 ? 'auto' : 'hidden';
   }, [text]);
 
   useLayoutEffect(() => {
@@ -213,6 +215,7 @@ const composerClass = css({
     width: '100%',
     height: 'auto',
     maxHeight: '112px',
+    overflowY: 'hidden',
     padding: 0,
     border: 0,
     background: 'transparent',
