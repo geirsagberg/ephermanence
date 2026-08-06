@@ -173,7 +173,7 @@ const launcherBubbleClass = css({
   width: '58px',
   height: '58px',
   placeItems: 'center',
-  padding: '0 0 3px',
+  padding: 0,
   border: '1px solid rgb(255 255 255 / 72%)',
   borderRadius: '50%',
   backgroundColor: 'var(--thought-tone)',
