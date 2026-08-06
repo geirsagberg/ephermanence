@@ -7,6 +7,23 @@
       content="width=device-width, initial-scale=1.0, interactive-widget=resizes-visual"
     />
     <meta name="theme-color" content="#ebe8df" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      let colorMode = 'light';
+      try {
+        if (window.localStorage.getItem('ephermanence-color-mode') === 'dark') {
+          colorMode = 'dark';
+        }
+      } catch {
+        // Theme persistence is optional when storage is unavailable.
+      }
+      document.documentElement.dataset.theme = colorMode;
+      document.documentElement.style.colorScheme = colorMode;
+      const themeColor = document.querySelector('meta[name="theme-color"]');
+      if (themeColor) {
+        themeColor.content = colorMode === 'dark' ? '#171b19' : '#ebe8df';
+      }
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Ephermanence" />

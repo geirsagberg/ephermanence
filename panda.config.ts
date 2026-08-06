@@ -8,6 +8,9 @@ const globalCss = defineGlobalStyles({
     fontSynthesis: 'none',
     textRendering: 'optimizeLegibility',
   },
+  '[data-theme=dark]': {
+    background: '#171b19',
+  },
   'html, body, #root': {
     width: '100%',
     minWidth: '320px',
