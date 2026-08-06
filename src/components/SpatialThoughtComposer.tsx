@@ -229,5 +229,12 @@ const composerClass = css({
     '&::placeholder': {
       color: 'rgb(38 49 45 / 38%)',
     },
+    '[data-theme=dark] &': {
+      color: '#e8eee9',
+      '&::placeholder': {
+        color: 'rgb(232 238 233 / 40%)',
+      },
+    },
+    transition: 'color 480ms ease',
   },
 });

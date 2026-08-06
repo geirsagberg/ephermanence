@@ -6,6 +6,7 @@ import { css } from '../../styled-system/css';
 import {
   composerOpenAtom,
   launcherRequestAtom,
+  nextThoughtDarkToneColorAtom,
   nextThoughtToneColorAtom,
 } from '../appState';
 import { getLauncherDragUpdate, type Position } from '../thoughtLauncherDrag';
@@ -19,6 +20,7 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
   const composerOpen = useAtomValue(composerOpenAtom);
   const launchRequest = useAtomValue(launcherRequestAtom);
   const toneColor = useAtomValue(nextThoughtToneColorAtom);
+  const darkToneColor = useAtomValue(nextThoughtDarkToneColorAtom);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const handledLaunchRequest = useRef(launchRequest);
   const pointerStart = useRef<Position | null>(null);
@@ -48,8 +50,10 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
     <div
       className={launcherClass}
       style={
-        { '--thought-tone': toneColor } as CSSProperties &
-          Record<'--thought-tone', string>
+        {
+          '--thought-tone': toneColor,
+          '--thought-tone-dark': darkToneColor,
+        } as CSSProperties & Record<'--thought-tone' | '--thought-tone-dark', string>
       }
     >
       {!launch && (
@@ -172,14 +176,14 @@ const launcherBubbleClass = css({
   padding: '0 0 3px',
   border: '1px solid rgb(255 255 255 / 72%)',
   borderRadius: '50%',
-  background:
-    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 58%), transparent 34%), var(--thought-tone)',
+  backgroundColor: 'var(--thought-tone)',
+  backgroundImage:
+    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 58%), transparent 34%)',
   boxShadow: '0 12px 34px rgb(48 61 54 / 14%), inset 0 -4px 12px rgb(70 92 80 / 6%)',
   color: '#43544b',
   cursor: 'grab',
   touchAction: 'none',
   transform: 'translateX(-50%)',
-  transition: 'width 180ms ease, height 180ms ease, box-shadow 180ms ease',
   pointerEvents: 'auto',
   WebkitTapHighlightColor: 'transparent',
   _active: {
@@ -188,6 +192,16 @@ const launcherBubbleClass = css({
     boxShadow: '0 16px 40px rgb(48 61 54 / 18%)',
     cursor: 'grabbing',
   },
+  '[data-theme=dark] &': {
+    borderColor: 'rgb(236 242 238 / 24%)',
+    backgroundColor: 'var(--thought-tone-dark)',
+    backgroundImage:
+      'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 12%), transparent 34%)',
+    boxShadow: '0 14px 38px rgb(0 0 0 / 26%), inset 0 -4px 12px rgb(0 0 0 / 8%)',
+    color: '#e7ede8',
+  },
+  transition:
+    'width 180ms ease, height 180ms ease, border-color 480ms ease, background-color 480ms ease, box-shadow 480ms ease, color 480ms ease',
 });
 
 const launcherSeedClass = css({
@@ -196,8 +210,16 @@ const launcherSeedClass = css({
   height: '58px',
   border: '1px solid rgb(255 255 255 / 76%)',
   borderRadius: '50%',
-  background:
-    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 62%), transparent 34%), var(--thought-tone)',
+  backgroundColor: 'var(--thought-tone)',
+  backgroundImage:
+    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 62%), transparent 34%)',
   boxShadow: '0 12px 34px rgb(48 61 54 / 12%)',
   animation: 'launchSeed 200ms ease-out both',
+  '[data-theme=dark] &': {
+    borderColor: 'rgb(236 242 238 / 26%)',
+    backgroundColor: 'var(--thought-tone-dark)',
+    backgroundImage:
+      'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 14%), transparent 34%)',
+    boxShadow: '0 12px 34px rgb(0 0 0 / 24%)',
+  },
 });

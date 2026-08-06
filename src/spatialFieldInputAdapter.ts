@@ -20,6 +20,7 @@ import type { ThoughtAuthoringCommand } from './thoughtAuthoring';
 export type SpatialFieldPresentation = {
   ambientBubbleSettings: AmbientBubbleSettings;
   hiddenThoughtId?: string;
+  colorMode: 'light' | 'dark';
 };
 
 export type ThoughtControl = 'edit' | 'delete' | 'grab';
@@ -107,6 +108,7 @@ export function createSpatialFieldInputAdapter({
   let stopResize = () => {};
   let presentation: SpatialFieldPresentation = {
     ambientBubbleSettings: defaultAmbientBubbleSettings,
+    colorMode: 'light',
   };
   let renderedPresentation: SpatialFieldPresentation | null = null;
   let renderedSnapshot: SpatialInteractionSnapshot | null = null;
@@ -142,7 +144,11 @@ export function createSpatialFieldInputAdapter({
 
   const render = () => {
     if (!scene) return;
-    scene.render(presentation.ambientBubbleSettings, presentation.hiddenThoughtId);
+    scene.render(
+      presentation.ambientBubbleSettings,
+      presentation.hiddenThoughtId,
+      presentation.colorMode,
+    );
     renderedPresentation = presentation;
     renderedSnapshot = interaction.read();
   };
@@ -523,6 +529,7 @@ function samePresentation(
 ) {
   return (
     left?.hiddenThoughtId === right.hiddenThoughtId &&
+    left?.colorMode === right.colorMode &&
     left?.ambientBubbleSettings.size === right.ambientBubbleSettings.size &&
     left.ambientBubbleSettings.presence === right.ambientBubbleSettings.presence &&
     left.ambientBubbleSettings.density === right.ambientBubbleSettings.density

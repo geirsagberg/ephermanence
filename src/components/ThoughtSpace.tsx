@@ -33,6 +33,7 @@ type ThoughtSpaceProps = {
   interaction: SpatialInteraction;
   inputAdapter: SpatialFieldInputAdapter;
   findFreePosition: ThoughtAuthoring['findFreePosition'];
+  colorMode: 'light' | 'dark';
   className?: string;
 };
 
@@ -40,6 +41,7 @@ export function ThoughtSpace({
   interaction,
   inputAdapter,
   findFreePosition,
+  colorMode,
   className = '',
 }: ThoughtSpaceProps) {
   const snapshot = useAtomValue(fieldSnapshotAtom);
@@ -68,9 +70,13 @@ export function ThoughtSpace({
   useEffect(() => {
     inputAdapter.send({
       type: 'present',
-      presentation: { ambientBubbleSettings, hiddenThoughtId: editingThoughtId },
+      presentation: {
+        ambientBubbleSettings,
+        hiddenThoughtId: editingThoughtId,
+        colorMode,
+      },
     });
-  }, [inputAdapter, ambientBubbleSettings, editingThoughtId]);
+  }, [inputAdapter, ambientBubbleSettings, colorMode, editingThoughtId]);
 
   const selectedThought = snapshot.state.thoughts.find(
     (thought) => thought.id === snapshot.selectedId,
@@ -243,6 +249,7 @@ function keyboardControlEvent(
 
 const thoughtSpaceClass = css({
   position: 'absolute',
+  zIndex: 1,
   inset: 0,
   touchAction: 'none',
   '& canvas': {
@@ -276,6 +283,20 @@ const actionButtonClass = css({
   _active: {
     background: '#f1efe8',
   },
+  '[data-theme=dark] &': {
+    borderColor: 'rgb(236 242 238 / 14%)',
+    background: 'rgb(37 43 40 / 88%)',
+    boxShadow: '0 7px 24px rgb(0 0 0 / 20%)',
+    color: 'rgb(236 242 238 / 74%)',
+    _hover: {
+      color: '#f1f4f1',
+    },
+    _active: {
+      background: '#303633',
+    },
+  },
+  transition:
+    'border-color 480ms ease, background-color 480ms ease, box-shadow 480ms ease, color 480ms ease',
 });
 
 const directActionButtonClass = css({

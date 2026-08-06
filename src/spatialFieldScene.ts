@@ -64,6 +64,8 @@ type ActiveBond = { graphic: Graphics; geometry: BondGeometry };
 type ThoughtBubbleRecord = {
   bubble: Container;
   cachedVisual: Container;
+  body: Graphics;
+  label: Text;
   shadowFilter?: DropShadowFilter;
   appearance: number;
   elevation: number;
@@ -85,10 +87,15 @@ const thoughtAuthoringOpenDuration = 240;
 const thoughtAuthoringCloseDuration = 200;
 const thoughtAuthoringDismissDuration = 180;
 const thoughtAuthoringRadius = 105;
+const colorModeTransitionDuration = 480;
+const lightThoughtText = 0x26312d;
+const darkThoughtText = 0xe8eee9;
 
 type ThoughtAuthoringVisual = {
   id: string;
+  tone: number;
   bubble: Container;
+  body: Graphics;
   preview: Text | null;
   shadowFilter?: DropShadowFilter;
   position: Point;
@@ -126,6 +133,8 @@ export class SpatialFieldScene extends Container {
     { graphic: Graphics; elapsed: number }
   >();
   private hasRendered = false;
+  private colorModeProgress = 0;
+  private colorModeTarget = 0;
   private authoringVisual: ThoughtAuthoringVisual | null = null;
   constructor(
     private readonly onThoughtPointerDown: ThoughtPointerDown = () => {},
@@ -155,6 +164,7 @@ export class SpatialFieldScene extends Container {
         presentation.tone,
         this.createThoughtShadowFilter,
         presentation.elevation.source,
+        this.colorModeProgress,
       );
       const sourceY =
         presentation.position.y -
@@ -166,6 +176,7 @@ export class SpatialFieldScene extends Container {
       this.authoring.addChild(created.bubble);
       visual = {
         id: presentation.id,
+        tone: presentation.tone,
         ...created,
         preview: null,
         position: { ...presentation.position },
@@ -225,7 +236,11 @@ export class SpatialFieldScene extends Container {
     visual.preview = null;
     if (presentation.phase !== 'cancel-dismiss' && presentation.text) {
       const radius = thoughtRadius(presentation.text);
-      const preview = createThoughtLabel(presentation.text, radius);
+      const preview = createThoughtLabel(
+        presentation.text,
+        radius,
+        this.colorModeProgress,
+      );
       preview.position.set(presentation.position.x, visual.toY);
       preview.scale.set((presentation.closeScale * thoughtAuthoringRadius) / radius);
       preview.alpha = 0;
@@ -239,7 +254,16 @@ export class SpatialFieldScene extends Container {
     bounds: WorldBounds,
     settings: AmbientBubbleSettings = defaultAmbientBubbleSettings,
     hiddenThoughtId?: string,
+    colorMode: 'light' | 'dark' = 'light',
   ) {
+    const nextColorModeTarget = colorMode === 'dark' ? 1 : 0;
+    if (!this.hasRendered) {
+      this.colorModeProgress = nextColorModeTarget;
+      this.colorModeTarget = nextColorModeTarget;
+      this.applyColorMode();
+    } else {
+      this.colorModeTarget = nextColorModeTarget;
+    }
     const { camera, state, selectedId, grabbedThoughtId, attachmentCandidateIds } =
       snapshot;
     this.ambient.position.set(camera.x, camera.y);
@@ -309,6 +333,7 @@ export class SpatialFieldScene extends Container {
           this.createThoughtShadowFilter,
           targetElevation,
           radius,
+          this.colorModeProgress,
         );
         record = {
           ...created,
@@ -346,6 +371,23 @@ export class SpatialFieldScene extends Container {
   }
 
   advanceAnimations(deltaMs: number) {
+    if (this.colorModeProgress !== this.colorModeTarget) {
+      const direction = Math.sign(this.colorModeTarget - this.colorModeProgress);
+      this.colorModeProgress = Math.max(
+        0,
+        Math.min(
+          1,
+          this.colorModeProgress +
+            direction *
+              Math.min(
+                deltaMs / colorModeTransitionDuration,
+                Math.abs(this.colorModeTarget - this.colorModeProgress),
+              ),
+        ),
+      );
+      this.applyColorMode();
+    }
+
     const authoringVisual = this.authoringVisual;
     if (authoringVisual && authoringVisual.elapsed < authoringVisual.duration) {
       authoringVisual.elapsed = Math.min(
@@ -456,6 +498,25 @@ export class SpatialFieldScene extends Container {
     }
   }
 
+  private applyColorMode() {
+    for (const record of this.thoughtBubbles.values()) {
+      drawThoughtBody(record.body, record.radius, record.tone, this.colorModeProgress);
+      applyThoughtLabelColor(record.label, this.colorModeProgress);
+      record.cachedVisual.updateCacheTexture();
+    }
+    if (this.authoringVisual) {
+      drawThoughtBody(
+        this.authoringVisual.body,
+        thoughtAuthoringRadius,
+        this.authoringVisual.tone,
+        this.colorModeProgress,
+      );
+      if (this.authoringVisual.preview) {
+        applyThoughtLabelColor(this.authoringVisual.preview, this.colorModeProgress);
+      }
+    }
+  }
+
   private drawInteractionOutline(
     state: SpatialInteractionSnapshot['state'],
     selectedId: string | null,
@@ -537,7 +598,11 @@ function drawBond(graphic: Graphics, { from, to }: BondGeometry) {
 export type MountedSpatialFieldScene = {
   canvas: HTMLCanvasElement;
   screen: { width: number; height: number };
-  render: (settings?: AmbientBubbleSettings, hiddenThoughtId?: string) => void;
+  render: (
+    settings?: AmbientBubbleSettings,
+    hiddenThoughtId?: string,
+    colorMode?: 'light' | 'dark',
+  ) => void;
   presentAuthoring: (presentation?: ThoughtAuthoringPresentation) => void;
   onResize: (listener: () => void) => () => void;
   destroy: () => void;
@@ -570,7 +635,7 @@ export async function mountSpatialFieldScene(
     get screen() {
       return app.screen;
     },
-    render(settings = defaultAmbientBubbleSettings, hiddenThoughtId) {
+    render(settings = defaultAmbientBubbleSettings, hiddenThoughtId, colorMode) {
       const topLeft = interaction.screenToWorld({ x: 0, y: 0 });
       const bottomRight = interaction.screenToWorld({
         x: app.screen.width,
@@ -586,6 +651,7 @@ export async function mountSpatialFieldScene(
         },
         settings,
         hiddenThoughtId,
+        colorMode,
       );
     },
     presentAuthoring(presentation) {
@@ -606,13 +672,14 @@ function createAuthoringBubble(
   tone: number,
   createShadowFilter?: ThoughtShadowFilterFactory,
   elevation = 1,
+  colorModeProgress = 0,
 ) {
   const bubble = new Container();
-  const body = createThoughtBody(thoughtAuthoringRadius, tone);
+  const body = createThoughtBody(thoughtAuthoringRadius, tone, colorModeProgress);
   const shadowFilter = createShadowFilter?.(elevation);
   if (shadowFilter) body.filters = [shadowFilter];
   bubble.addChild(body);
-  return { bubble, shadowFilter };
+  return { bubble, body, shadowFilter };
 }
 
 function createThoughtBubble(
@@ -621,6 +688,7 @@ function createThoughtBubble(
   createShadowFilter?: ThoughtShadowFilterFactory,
   elevation = 0,
   radius = thoughtRadius(thought.text),
+  colorModeProgress = 0,
 ) {
   const bubble = new Container();
   bubble.x = thought.x;
@@ -631,14 +699,14 @@ function createThoughtBubble(
     contains: (x: number, y: number) => x * x + y * y <= radius * radius,
   };
 
-  const body = createThoughtBody(radius, thought.tone);
+  const body = createThoughtBody(radius, thought.tone, colorModeProgress);
   const shadowFilter = createShadowFilter?.(elevation);
   if (shadowFilter) {
     applyThoughtElevation(shadowFilter, elevation);
     body.filters = [shadowFilter];
   }
 
-  const label = createThoughtLabel(thought.text, radius);
+  const label = createThoughtLabel(thought.text, radius, colorModeProgress);
   const cachedVisual = new Container();
   cachedVisual.y = -thoughtRise * elevation;
   if (shadowFilter) {
@@ -660,10 +728,10 @@ function createThoughtBubble(
     );
     bubble.cursor = 'grabbing';
   });
-  return { bubble, cachedVisual, shadowFilter };
+  return { bubble, cachedVisual, body, label, shadowFilter };
 }
 
-function createThoughtLabel(text: string, radius: number) {
+function createThoughtLabel(text: string, radius: number, colorModeProgress = 0) {
   let textStyle: TextStyle | null = null;
   const textLayout = layoutThoughtText({
     text,
@@ -674,6 +742,7 @@ function createThoughtLabel(text: string, radius: number) {
     },
   });
   textStyle ??= new TextStyle(textLayout.style);
+  textStyle.fill = interpolateColor(lightThoughtText, darkThoughtText, colorModeProgress);
   const label = new Text({
     text: textLayout.text,
     autoGenerateMipmaps: true,
@@ -683,14 +752,47 @@ function createThoughtLabel(text: string, radius: number) {
   return label;
 }
 
-function createThoughtBody(radius: number, tone: number) {
-  return new Graphics()
+function createThoughtBody(radius: number, tone: number, colorModeProgress = 0) {
+  return drawThoughtBody(new Graphics(), radius, tone, colorModeProgress);
+}
+
+function drawThoughtBody(
+  body: Graphics,
+  radius: number,
+  tone: number,
+  colorModeProgress: number,
+) {
+  const thoughtTone = getThoughtTone(tone);
+  return body
+    .clear()
     .circle(0, 0, radius)
-    .fill({ color: getThoughtTone(tone).canvas, alpha: 0.96 })
+    .fill({
+      color: interpolateColor(
+        thoughtTone.canvas,
+        thoughtTone.darkCanvas,
+        colorModeProgress,
+      ),
+      alpha: interpolate(0.96, 0.94, colorModeProgress),
+    })
     .circle(-radius * 0.22, -radius * 0.24, radius * 0.66)
-    .fill({ color: 0xffffff, alpha: 0.15 })
+    .fill({
+      color: 0xffffff,
+      alpha: interpolate(0.15, 0.07, colorModeProgress),
+    })
     .circle(0, 0, radius - 1)
-    .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
+    .stroke({
+      color: 0xffffff,
+      alpha: interpolate(0.55, 0.2, colorModeProgress),
+      width: 1,
+    });
+}
+
+function applyThoughtLabelColor(label: Text, colorModeProgress: number) {
+  label.style.fill = interpolateColor(
+    lightThoughtText,
+    darkThoughtText,
+    colorModeProgress,
+  );
 }
 
 function createThoughtShadowFilter(elevation: number) {
@@ -819,6 +921,12 @@ function clamp(value: number, min: number, max: number) {
 
 function interpolate(from: number, to: number, progress: number) {
   return from + (to - from) * progress;
+}
+
+function interpolateColor(from: number, to: number, progress: number) {
+  const channel = (shift: number) =>
+    Math.round(interpolate((from >> shift) & 0xff, (to >> shift) & 0xff, progress));
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }
 
 // Matches CSS cubic-bezier(0.4, 0, 0.2, 1) for a seamless DOM/Pixi handoff.

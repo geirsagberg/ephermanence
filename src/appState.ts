@@ -45,6 +45,11 @@ export const nextThoughtToneColorAtom = atom((get) => {
   return getThoughtTone(snapshot.state.thoughts.length).css;
 });
 
+export const nextThoughtDarkToneColorAtom = atom((get) => {
+  const snapshot = get(fieldSnapshotAtom);
+  return getThoughtTone(snapshot.state.thoughts.length).darkCss;
+});
+
 export const sendThoughtAuthoringAtom = atom(
   null,
   (get, _set, input: ThoughtAuthoringInput) => {

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { defaultAmbientBubbleSettings, SpatialFieldScene } from './spatialFieldScene';
 import type { SpatialInteractionSnapshot } from './spatialInteraction';
+import { getThoughtTone } from './thoughtTone';
 import { thoughtRadius } from './thoughtTextLayout';
 import type { SpaceState } from './types';
 
@@ -207,6 +208,47 @@ describe('spatial field scene', () => {
     expect(bubble.alpha).toBeLessThan(1);
     scene.advanceAnimations(40);
     expect(bubble.alpha).toBe(1);
+  });
+
+  it('crossfades Thought bodies and text into the dark palette', () => {
+    const scene = new SpatialFieldScene();
+    const thought = {
+      id: 'themed',
+      text: 'Themed',
+      x: 0,
+      y: 0,
+      tone: 2,
+    };
+    const state = snapshot({ thoughts: [thought], attachments: [] });
+    scene.render(state, viewport);
+    const cachedVisual = thoughts(scene).children[0].children[0] as Container;
+    const body = cachedVisual.children[0] as Graphics;
+    const label = cachedVisual.children[1] as unknown as {
+      style: { fill: number };
+    };
+    const bodyColor = () =>
+      (
+        body.context.instructions[0] as unknown as {
+          data: { style: { color: number } };
+        }
+      ).data.style.color;
+    const tone = getThoughtTone(thought.tone);
+
+    expect(bodyColor()).toBe(tone.canvas);
+    expect(label.style.fill).toBe(0x26312d);
+
+    scene.render(state, viewport, undefined, undefined, 'dark');
+    scene.advanceAnimations(240);
+
+    expect(bodyColor()).not.toBe(tone.canvas);
+    expect(bodyColor()).not.toBe(tone.darkCanvas);
+    expect(label.style.fill).not.toBe(0x26312d);
+    expect(label.style.fill).not.toBe(0xe8eee9);
+
+    scene.advanceAnimations(240);
+
+    expect(bodyColor()).toBe(tone.darkCanvas);
+    expect(label.style.fill).toBe(0xe8eee9);
   });
 
   it('animates authoring in screen space and closes to the persisted Thought scale', () => {
