@@ -1,25 +1,25 @@
 import { Plus } from 'lucide-react';
+import { useAtomValue } from 'jotai';
 import type { CSSProperties } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { css } from '../../styled-system/css';
+import {
+  composerOpenAtom,
+  launcherRequestAtom,
+  nextThoughtToneColorAtom,
+} from '../appState';
 
 type Position = { x: number; y: number };
 
 type ThoughtLauncherProps = {
-  composerOpen: boolean;
   getTapPosition: () => Position;
-  launchRequest: number;
   onOpen: (position: Position) => void;
-  toneColor: string;
 };
 
-export function ThoughtLauncher({
-  composerOpen,
-  getTapPosition,
-  launchRequest,
-  onOpen,
-  toneColor,
-}: ThoughtLauncherProps) {
+export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps) {
+  const composerOpen = useAtomValue(composerOpenAtom);
+  const launchRequest = useAtomValue(launcherRequestAtom);
+  const toneColor = useAtomValue(nextThoughtToneColorAtom);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const handledLaunchRequest = useRef(launchRequest);
   const pointerStart = useRef<Position | null>(null);

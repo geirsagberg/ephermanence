@@ -5,16 +5,15 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import { Fragment, useEffect, useRef } from 'react';
+import { useAtomValue } from 'jotai';
 import { css, cx } from '../../styled-system/css';
 
 import {
-  defaultAmbientBubbleSettings,
-  type AmbientBubbleSettings,
-} from '../spatialFieldScene';
-import type {
-  SpatialInteraction,
-  SpatialInteractionSnapshot,
-} from '../spatialInteraction';
+  ambientBubbleSettingsAtom,
+  editingThoughtIdAtom,
+  fieldSnapshotAtom,
+} from '../appState';
+import type { SpatialInteraction } from '../spatialInteraction';
 import type {
   SpatialFieldInputAdapter,
   ThoughtControl,
@@ -26,32 +25,24 @@ import {
   positionThoughtActions,
   THOUGHT_ACTION_SIZE,
 } from '../thoughtActions';
-import { getThoughtTone } from '../thoughtTone';
 import { ThoughtLauncher } from './ThoughtLauncher';
 
 type ThoughtSpaceProps = {
   interaction: SpatialInteraction;
   inputAdapter: SpatialFieldInputAdapter;
-  snapshot: SpatialInteractionSnapshot;
   findFreePosition: ThoughtAuthoring['findFreePosition'];
-  launchRequest: number;
-  composerOpen?: boolean;
-  editingThoughtId?: string;
-  ambientBubbleSettings?: AmbientBubbleSettings;
   className?: string;
 };
 
 export function ThoughtSpace({
   interaction,
   inputAdapter,
-  snapshot,
   findFreePosition,
-  launchRequest,
-  composerOpen = false,
-  editingThoughtId,
-  ambientBubbleSettings = defaultAmbientBubbleSettings,
   className = '',
 }: ThoughtSpaceProps) {
+  const snapshot = useAtomValue(fieldSnapshotAtom);
+  const editingThoughtId = useAtomValue(editingThoughtIdAtom);
+  const ambientBubbleSettings = useAtomValue(ambientBubbleSettingsAtom);
   const hostRef = useRef<HTMLDivElement>(null);
   const getNewThoughtPosition = () => {
     const current = interaction.read();
@@ -76,7 +67,7 @@ export function ThoughtSpace({
       type: 'present',
       presentation: { ambientBubbleSettings, hiddenThoughtId: editingThoughtId },
     });
-  }, [inputAdapter, snapshot, ambientBubbleSettings, editingThoughtId]);
+  }, [inputAdapter, ambientBubbleSettings, editingThoughtId]);
 
   const selectedThought = snapshot.state.thoughts.find(
     (thought) => thought.id === snapshot.selectedId,
@@ -200,10 +191,7 @@ export function ThoughtSpace({
         </Fragment>
       )}
       <ThoughtLauncher
-        composerOpen={composerOpen}
         getTapPosition={getNewThoughtPosition}
-        launchRequest={launchRequest}
-        toneColor={getThoughtTone(snapshot.state.thoughts.length).css}
         onOpen={(screenPosition) => {
           inputAdapter.send({
             type: 'launcher-open',

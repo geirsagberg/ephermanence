@@ -1,6 +1,13 @@
-import { useCallback, useRef, useState } from 'react';
+import { Provider, useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useState } from 'react';
 import { css } from '../styled-system/css';
 
+import {
+  ambientBubbleSettingsAtom,
+  createAppState,
+  sendThoughtAuthoringAtom,
+  thoughtAuthoringStateAtom,
+} from './appState';
 import {
   defaultAmbientBubbleSettings,
   type AmbientBubbleSettings,
@@ -15,10 +22,10 @@ import { spaceForQuery } from './initialSpace';
 import { createSpatialInteraction } from './spatialInteraction';
 import {
   createSpatialFieldInputAdapter,
-  type SpatialFieldFrame,
+  type SpatialFieldInputAdapter,
 } from './spatialFieldInputAdapter';
 import type { SpaceStorage } from './spaceStorage';
-import { createThoughtAuthoring, type ThoughtAuthoringInput } from './thoughtAuthoring';
+import { createThoughtAuthoring } from './thoughtAuthoring';
 import { getThoughtTone } from './thoughtTone';
 
 function Wordmark() {
@@ -31,73 +38,18 @@ function Wordmark() {
 }
 
 export function App() {
-  const tuningAmbientBubbles = new URLSearchParams(window.location.search).has('tune');
-  const [storage] = useState<SpaceStorage | null>(() => {
-    const query = new URLSearchParams(window.location.search);
-    if (query.has('debug')) return null;
-    try {
-      return window.localStorage;
-    } catch {
-      return null;
-    }
-  });
-  const [interaction] = useState(() => {
-    return createSpatialInteraction(spaceForQuery(window.location.search), storage);
-  });
-  const [authoring] = useState(createThoughtAuthoring);
-  const [interactionSnapshot, setInteractionSnapshot] = useState(interaction.read);
-  const [authoringState, setAuthoringState] = useState(authoring.read);
-  const [launchRequest, setLaunchRequest] = useState(0);
-  const [ambientBubbleSettings, setAmbientBubbleSettings] =
-    useState<AmbientBubbleSettings>(() => readAmbientBubbleSettings());
-  const onFieldFrameRef = useRef<(frame: SpatialFieldFrame) => void>(() => {});
-  const [fieldInput] = useState(() =>
-    createSpatialFieldInputAdapter({
-      interaction,
-      onFrame: (frame) => onFieldFrameRef.current(frame),
-      onFailure: (error) => console.error('Spatial field failed to start', error),
-    }),
+  const [runtime] = useState(createAppRuntime);
+  return (
+    <Provider store={runtime.state.store}>
+      <AppView runtime={runtime} />
+    </Provider>
   );
-  onFieldFrameRef.current = (frame) => {
-    setInteractionSnapshot(frame.snapshot);
-    if (frame.launchRequests > 0) {
-      setLaunchRequest((request) => request + frame.launchRequests);
-    }
-    for (const effect of frame.effects) {
-      switch (effect.type) {
-        case 'request-create':
-          authoring.dispatch({
-            type: 'open-create',
-            screenPosition: effect.screenPosition,
-            worldPosition: effect.worldPosition,
-            tone: effect.tone,
-          });
-          break;
-        case 'request-edit':
-          authoring.dispatch({
-            type: 'open-edit',
-            thought: effect.thought,
-            screenPosition: effect.screenPosition,
-          });
-          break;
-        case 'empty-activated':
-          authoring.dispatch({ type: 'cancel' });
-          break;
-      }
-    }
-    setAuthoringState(authoring.read());
-  };
+}
 
-  const sendToAuthoring = useCallback(
-    (input: ThoughtAuthoringInput) => {
-      const commands = authoring.dispatch(input);
-      setAuthoringState(authoring.read());
-      for (const command of commands) {
-        fieldInput.send({ type: 'authoring-command', command });
-      }
-    },
-    [authoring, fieldInput],
-  );
+type AppRuntime = ReturnType<typeof createAppRuntime>;
+
+function AppView({ runtime }: { runtime: AppRuntime }) {
+  const tuningAmbientBubbles = new URLSearchParams(window.location.search).has('tune');
 
   return (
     <>
@@ -106,42 +58,75 @@ export function App() {
           <Wordmark />
         </header>
         <ThoughtSpace
-          interaction={interaction}
-          inputAdapter={fieldInput}
-          snapshot={interactionSnapshot}
-          findFreePosition={authoring.findFreePosition}
-          launchRequest={launchRequest}
-          ambientBubbleSettings={ambientBubbleSettings}
-          composerOpen={authoringState.mode !== 'idle'}
-          editingThoughtId={
-            authoringState.mode === 'editing' ? authoringState.id : undefined
-          }
+          interaction={runtime.interaction}
+          inputAdapter={runtime.fieldInput}
+          findFreePosition={runtime.authoring.findFreePosition}
         />
       </main>
-      {tuningAmbientBubbles && (
-        <AmbientBubbleTuner
-          settings={ambientBubbleSettings}
-          onChange={(settings, preset) => {
-            setAmbientBubbleSettings(settings);
-            writeAmbientBubbleSettings(settings, preset);
-          }}
-        />
-      )}
-      {authoringState.mode !== 'idle' && (
-        <SpatialThoughtComposer
-          key={authoringState.mode === 'editing' ? authoringState.id : 'new'}
-          position={authoringState.screenPosition}
-          initialText={
-            authoringState.mode === 'editing' ? authoringState.initialText : undefined
-          }
-          label={authoringState.mode === 'editing' ? 'Edit thought' : undefined}
-          toneColor={getThoughtTone(authoringState.tone).css}
-          onCancel={() => sendToAuthoring({ type: 'cancel' })}
-          onKeep={(text) => sendToAuthoring({ type: 'keep', text })}
-        />
-      )}
+      {tuningAmbientBubbles && <ConnectedAmbientBubbleTuner />}
+      <ConnectedSpatialThoughtComposer />
     </>
   );
+}
+
+function ConnectedAmbientBubbleTuner() {
+  const [settings, setSettings] = useAtom(ambientBubbleSettingsAtom);
+  return (
+    <AmbientBubbleTuner
+      settings={settings}
+      onChange={(nextSettings, preset) => {
+        setSettings(nextSettings);
+        writeAmbientBubbleSettings(nextSettings, preset);
+      }}
+    />
+  );
+}
+
+function ConnectedSpatialThoughtComposer() {
+  const authoringState = useAtomValue(thoughtAuthoringStateAtom);
+  const sendToAuthoring = useSetAtom(sendThoughtAuthoringAtom);
+  return authoringState.mode !== 'idle' ? (
+    <SpatialThoughtComposer
+      key={authoringState.mode === 'editing' ? authoringState.id : 'new'}
+      position={authoringState.screenPosition}
+      initialText={
+        authoringState.mode === 'editing' ? authoringState.initialText : undefined
+      }
+      label={authoringState.mode === 'editing' ? 'Edit thought' : undefined}
+      toneColor={getThoughtTone(authoringState.tone).css}
+      onCancel={() => sendToAuthoring({ type: 'cancel' })}
+      onKeep={(text) => sendToAuthoring({ type: 'keep', text })}
+    />
+  ) : null;
+}
+
+function createAppRuntime() {
+  const search = window.location.search;
+  const storage = readStorage(search);
+  const interaction = createSpatialInteraction(spaceForQuery(search), storage);
+  const authoring = createThoughtAuthoring();
+  let fieldInput: SpatialFieldInputAdapter;
+  const state = createAppState({
+    initialSnapshot: interaction.read(),
+    initialAmbientBubbleSettings: readAmbientBubbleSettings(),
+    authoring,
+    sendToField: (input) => fieldInput.send(input),
+  });
+  fieldInput = createSpatialFieldInputAdapter({
+    interaction,
+    onFrame: (frame) => state.acceptFieldFrame(frame),
+    onFailure: (error) => console.error('Spatial field failed to start', error),
+  });
+  return { state, interaction, authoring, fieldInput };
+}
+
+function readStorage(search: string): SpaceStorage | null {
+  if (new URLSearchParams(search).has('debug')) return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 const appShellClass = css({
