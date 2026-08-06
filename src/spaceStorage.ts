@@ -11,7 +11,17 @@ export function loadStoredSpace(storage: SpaceStorage | null): SpaceState | null
     const stored = storage.getItem(SPACE_STORAGE_KEY);
     if (!stored) return null;
     const parsed: unknown = JSON.parse(stored);
-    return isSpaceState(parsed) ? parsed : null;
+    if (!isSpaceState(parsed)) return null;
+    return {
+      thoughts: parsed.thoughts.map(({ id, text, x, y, tone }) => ({
+        id,
+        text,
+        x,
+        y,
+        tone,
+      })),
+      attachments: parsed.attachments,
+    };
   } catch {
     return null;
   }
@@ -59,8 +69,6 @@ function isThought(value: unknown): value is Thought {
     typeof value.text === 'string' &&
     isFiniteNumber(value.x) &&
     isFiniteNumber(value.y) &&
-    isFiniteNumber(value.radius) &&
-    value.radius > 0 &&
     isFiniteNumber(value.tone)
   );
 }

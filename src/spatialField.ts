@@ -167,9 +167,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
         case 'edit-thought': {
           const thoughts = state.thoughts.map((thought) => ({
             ...thought,
-            ...(thought.id === input.id
-              ? { text: input.text, radius: thoughtRadius(input.text) }
-              : {}),
+            ...(thought.id === input.id ? { text: input.text } : {}),
           }));
           state = {
             thoughts,
@@ -191,7 +189,6 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
                 id: input.id,
                 text: input.text,
                 ...input.position,
-                radius: thoughtRadius(input.text),
                 tone: input.tone,
               },
             ],
@@ -272,8 +269,8 @@ function attachmentKey([a, b]: Attachment) {
   return a < b ? `${a}:${b}` : `${b}:${a}`;
 }
 
-function areTouching(a: Thought, b: Thought) {
-  return Math.hypot(b.x - a.x, b.y - a.y) <= a.radius + b.radius;
+function areTouching(a: Thought, b: Thought, aRadius: number, bRadius: number) {
+  return Math.hypot(b.x - a.x, b.y - a.y) <= aRadius + bRadius;
 }
 
 function findAttachmentCandidateIds(
@@ -304,13 +301,18 @@ function findNewAttachments(
 ) {
   const keys = new Set(attachments.map(attachmentKey));
   const additions: Attachment[] = [];
+  const radii = thoughts.map((thought) => thoughtRadius(thought.text));
 
   for (let index = 0; index < thoughts.length; index += 1) {
     const a = thoughts[index];
     for (let targetIndex = index + 1; targetIndex < thoughts.length; targetIndex += 1) {
       const b = thoughts[targetIndex];
       const aIsMoving = movedIds.has(a.id);
-      if (aIsMoving === movedIds.has(b.id) || !areTouching(a, b)) continue;
+      if (
+        aIsMoving === movedIds.has(b.id) ||
+        !areTouching(a, b, radii[index], radii[targetIndex])
+      )
+        continue;
 
       const attachment: Attachment = aIsMoving ? [a.id, b.id] : [b.id, a.id];
       const key = attachmentKey(attachment);

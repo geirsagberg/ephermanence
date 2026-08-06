@@ -99,9 +99,11 @@ function ConnectedSpatialThoughtComposer({ runtime }: { runtime: AppRuntime }) {
   const zoom = runtime.interaction.read().camera.zoom;
   const editingRadius =
     displayedState?.mode === 'editing'
-      ? (runtime.interaction
-          .read()
-          .state.thoughts.find(({ id }) => id === displayedState.id)?.radius ?? 105)
+      ? thoughtRadius(
+          runtime.interaction
+            .read()
+            .state.thoughts.find(({ id }) => id === displayedState.id)?.text ?? '',
+        )
       : undefined;
   return displayedState ? (
     <SpatialThoughtComposer

@@ -3,7 +3,6 @@ export type Thought = {
   text: string;
   x: number;
   y: number;
-  radius: number;
   tone: number;
 };
 

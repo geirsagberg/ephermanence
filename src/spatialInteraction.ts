@@ -6,6 +6,7 @@ import {
   type SpatialFieldSnapshot,
 } from './spatialField';
 import { loadStoredSpace, saveStoredSpace, type SpaceStorage } from './spaceStorage';
+import { thoughtRadius } from './thoughtTextLayout';
 import { normalizeThoughtTone } from './thoughtTone';
 import type { SpaceState, Thought } from './types';
 
@@ -297,6 +298,7 @@ function thoughtAt(
     .reverse()
     .find(
       (thought) =>
-        Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <= thought.radius,
+        Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
+        thoughtRadius(thought.text),
     );
 }

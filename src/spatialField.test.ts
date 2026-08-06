@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { createSpatialField, type Point } from './spatialField';
 import type { Attachment, SpaceState, Thought } from './types';
 
-function thought(id: string, x: number, radius = 50): Thought {
-  return { id, text: id, x, y: 100, radius, tone: 0 };
+function thought(id: string, x: number): Thought {
+  return { id, text: id, x, y: 100, tone: 0 };
 }
 
 function field(thoughts: Thought[], attachments: Attachment[] = []) {
@@ -200,8 +200,8 @@ describe('spatial field transitions', () => {
   it('resizes an edited thought and recalculates its bonds', () => {
     const spatialField = createSpatialField({
       thoughts: [
-        { ...thought('editing', 100, 96), text: 'A'.repeat(100) },
-        thought('nearby', 270, 80),
+        { ...thought('editing', 100), text: 'A'.repeat(100) },
+        thought('nearby', 270),
       ],
       attachments: [['editing', 'nearby']],
     } satisfies SpaceState);
@@ -219,8 +219,8 @@ describe('spatial field transitions', () => {
       y: 100,
       tone: 0,
     });
-    expect(snapshot.state.thoughts[0].radius).toBeLessThan(96);
-    expect(snapshot.state.thoughts[1]).toEqual(thought('nearby', 270, 80));
+    expect(snapshot.state.thoughts[0]).not.toHaveProperty('radius');
+    expect(snapshot.state.thoughts[1]).toEqual(thought('nearby', 270));
     expect(snapshot.state.attachments).toEqual([]);
   });
 
@@ -268,6 +268,6 @@ describe('spatial field transitions', () => {
       y: 260,
       tone: 3,
     });
-    expect(created.radius).toBeGreaterThan(0);
+    expect(created).not.toHaveProperty('radius');
   });
 });

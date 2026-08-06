@@ -25,6 +25,7 @@ import {
   positionThoughtActions,
   THOUGHT_ACTION_SIZE,
 } from '../thoughtActions';
+import { thoughtRadius } from '../thoughtTextLayout';
 import { ThoughtLauncher } from './ThoughtLauncher';
 
 type ThoughtSpaceProps = {
@@ -50,7 +51,7 @@ export function ThoughtSpace({
     return findFreePosition({
       thoughts: current.state.thoughts.map((thought) => ({
         ...interaction.worldToScreen(thought),
-        radius: thought.radius * currentZoom,
+        radius: thoughtRadius(thought.text) * currentZoom,
       })),
       viewport: { width: window.innerWidth, height: window.innerHeight },
       zoom: currentZoom,
@@ -78,7 +79,10 @@ export function ThoughtSpace({
   const zoom = snapshot.camera.zoom;
   const actionPositions =
     selectedThought && selectedPosition
-      ? positionThoughtActions(selectedPosition, selectedThought.radius * zoom)
+      ? positionThoughtActions(
+          selectedPosition,
+          thoughtRadius(selectedThought.text) * zoom,
+        )
       : null;
   const selectedThoughtHasBond =
     selectedThought &&

@@ -5,7 +5,7 @@ import { SPACE_STORAGE_KEY, type SpaceStorage } from './spaceStorage';
 import type { Thought } from './types';
 
 function thought(id: string, x: number, y = 100): Thought {
-  return { id, text: id, x, y, radius: 50, tone: 0 };
+  return { id, text: id, x, y, tone: 0 };
 }
 
 function interaction(thoughts: Thought[] = []) {

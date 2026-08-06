@@ -27,6 +27,18 @@ describe('space storage', () => {
     expect(loadStoredSpace(storage)).toEqual(initialSpace);
   });
 
+  it('removes legacy formula-derived radii when loading', () => {
+    const stored = JSON.stringify({
+      thoughts: [{ id: 'legacy', text: 'Legacy', x: 1, y: 2, radius: 99, tone: 3 }],
+      attachments: [],
+    });
+
+    expect(loadStoredSpace(memoryStorage(stored))).toEqual({
+      thoughts: [{ id: 'legacy', text: 'Legacy', x: 1, y: 2, tone: 3 }],
+      attachments: [],
+    });
+  });
+
   it('ignores malformed or structurally invalid data', () => {
     expect(loadStoredSpace(memoryStorage('{broken'))).toBeNull();
     expect(

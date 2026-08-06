@@ -36,7 +36,7 @@ class FakeEventSource {
 }
 
 function thought(id: string, x: number, y = 0): Thought {
-  return { id, text: id, x, y, radius: 50, tone: 0 };
+  return { id, text: id, x, y, tone: 0 };
 }
 
 function createHarness(thoughts: Thought[] = [], attachments: [string, string][] = []) {

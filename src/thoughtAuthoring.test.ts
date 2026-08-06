@@ -37,7 +37,6 @@ describe('Thought authoring', () => {
         text: 'Before',
         x: 10,
         y: 20,
-        radius: 74,
         tone: 0,
       },
       screenPosition: { x: 210, y: 320 },

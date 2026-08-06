@@ -30,7 +30,7 @@ function createHarness(thoughts: Thought[] = []) {
 
 describe('app state subscriptions', () => {
   it('projects a field frame into focused subscriptions', () => {
-    const thought = { id: 'selected', text: 'Selected', x: 0, y: 0, radius: 48, tone: 2 };
+    const thought = { id: 'selected', text: 'Selected', x: 0, y: 0, tone: 2 };
     const harness = createHarness([thought]);
     const composerChanged = vi.fn();
     const stop = harness.store.sub(composerOpenAtom, composerChanged);

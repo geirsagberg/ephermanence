@@ -16,7 +16,7 @@ import type {
   SpatialInteractionSnapshot,
 } from './spatialInteraction';
 import { getThoughtTone } from './thoughtTone';
-import { layoutThoughtText } from './thoughtTextLayout';
+import { layoutThoughtText, thoughtRadius } from './thoughtTextLayout';
 
 export type WorldBounds = {
   left: number;
@@ -111,7 +111,10 @@ export class SpatialFieldScene extends Container {
     this.foreground.position.set(camera.x, camera.y);
     this.foreground.scale.set(camera.zoom);
     this.ambient.update(bounds, settings);
-    this.drawInteractionOutline(state, selectedId, attachmentCandidateIds);
+    const radii = new Map(
+      state.thoughts.map((thought) => [thought.id, thoughtRadius(thought.text)]),
+    );
+    this.drawInteractionOutline(state, selectedId, attachmentCandidateIds, radii);
     this.bonds.removeChildren();
     this.thoughts.removeChildren();
 
@@ -155,17 +158,19 @@ export class SpatialFieldScene extends Container {
     const nextThoughtIds = new Set<string>();
     for (const thought of state.thoughts) {
       if (thought.id === hiddenThoughtId) continue;
+      const radius = radii.get(thought.id)!;
       nextThoughtIds.add(thought.id);
       const targetElevation =
         !bondedThoughtIds.has(thought.id) || grabbedThoughtId === thought.id ? 1 : 0;
       let record = this.thoughtBubbles.get(thought.id);
-      if (!record || !sameThoughtVisual(record, thought)) {
+      if (!record || !sameThoughtVisual(record, thought, radius)) {
         record?.bubble.destroy({ children: true });
         const created = createThoughtBubble(
           thought,
           this.onThoughtPointerDown,
           this.createThoughtShadowFilter,
           targetElevation,
+          radius,
         );
         record = {
           ...created,
@@ -173,7 +178,7 @@ export class SpatialFieldScene extends Container {
           elevation: targetElevation,
           targetElevation,
           text: thought.text,
-          radius: thought.radius,
+          radius,
           tone: thought.tone,
         };
         applyThoughtAppearance(record.bubble, record.appearance);
@@ -278,6 +283,7 @@ export class SpatialFieldScene extends Container {
     state: SpatialInteractionSnapshot['state'],
     selectedId: string | null,
     attachmentCandidateIds: string[],
+    radii: Map<string, number>,
   ) {
     const outlinedIds = new Set<string>();
     if (selectedId) {
@@ -303,7 +309,7 @@ export class SpatialFieldScene extends Container {
     for (const thought of state.thoughts) {
       if (!outlinedIds.has(thought.id)) continue;
       this.clusterOutline
-        .circle(thought.x, thought.y, thought.radius + 8)
+        .circle(thought.x, thought.y, radii.get(thought.id)! + 8)
         .fill({ color: 0x718c7d, alpha: 0.22 });
     }
   }
@@ -312,10 +318,11 @@ export class SpatialFieldScene extends Container {
 function sameThoughtVisual(
   record: ThoughtBubbleRecord,
   thought: SpatialInteractionSnapshot['state']['thoughts'][number],
+  radius: number,
 ) {
   return (
     record.text === thought.text &&
-    record.radius === thought.radius &&
+    record.radius === radius &&
     record.tone === thought.tone
   );
 }
@@ -419,6 +426,7 @@ function createThoughtBubble(
   onPointerDown: ThoughtPointerDown,
   createShadowFilter?: ThoughtShadowFilterFactory,
   elevation = 0,
+  radius = thoughtRadius(thought.text),
 ) {
   const bubble = new Container();
   bubble.x = thought.x;
@@ -426,15 +434,15 @@ function createThoughtBubble(
   bubble.eventMode = 'static';
   bubble.cursor = 'grab';
   bubble.hitArea = {
-    contains: (x: number, y: number) => x * x + y * y <= thought.radius * thought.radius,
+    contains: (x: number, y: number) => x * x + y * y <= radius * radius,
   };
 
   const body = new Graphics()
-    .circle(0, 0, thought.radius)
+    .circle(0, 0, radius)
     .fill({ color: getThoughtTone(thought.tone).canvas, alpha: 0.96 })
-    .circle(-thought.radius * 0.22, -thought.radius * 0.24, thought.radius * 0.66)
+    .circle(-radius * 0.22, -radius * 0.24, radius * 0.66)
     .fill({ color: 0xffffff, alpha: 0.15 })
-    .circle(0, 0, thought.radius - 1)
+    .circle(0, 0, radius - 1)
     .stroke({ color: 0xffffff, alpha: 0.55, width: 1 });
   const shadowFilter = createShadowFilter?.(elevation);
   if (shadowFilter) {
@@ -445,7 +453,7 @@ function createThoughtBubble(
   let textStyle: TextStyle | null = null;
   const textLayout = layoutThoughtText({
     text: thought.text,
-    radius: thought.radius,
+    radius,
     measureText: (text, style) => {
       textStyle ??= new TextStyle(style);
       return CanvasTextMetrics.measureText(text, textStyle, undefined, false).width;
@@ -461,7 +469,7 @@ function createThoughtBubble(
   const cachedVisual = new Container();
   cachedVisual.y = -thoughtRise * elevation;
   if (shadowFilter) {
-    const extent = thought.radius + maxThoughtShadowPadding;
+    const extent = radius + maxThoughtShadowPadding;
     const cachePadding = new Graphics()
       .rect(-extent, -extent, extent * 2, extent * 2)
       .fill({ color: 0, alpha: 0 });

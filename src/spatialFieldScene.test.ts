@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { defaultAmbientBubbleSettings, SpatialFieldScene } from './spatialFieldScene';
 import type { SpatialInteractionSnapshot } from './spatialInteraction';
+import { thoughtRadius } from './thoughtTextLayout';
 import type { SpaceState } from './types';
 
 const viewport = { left: -195, right: 195, top: -422, bottom: 422 };
@@ -62,7 +63,6 @@ describe('spatial field scene', () => {
       text: 'First',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'second', text: 'Second', x: 100 };
@@ -85,7 +85,6 @@ describe('spatial field scene', () => {
       text: 'First',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'second', text: 'Second', x: 100 };
@@ -99,8 +98,8 @@ describe('spatial field scene', () => {
 
     const outline = clusterOutline(scene);
     expect(foreground(scene).children).toEqual([outline, bonds(scene), thoughts(scene)]);
-    expect(outline.bounds.minX).toBe(-82);
-    expect(outline.bounds.maxX).toBe(182);
+    expect(outline.bounds.minX).toBeCloseTo(-thoughtRadius(first.text) - 8);
+    expect(outline.bounds.maxX).toBeCloseTo(second.x + thoughtRadius(second.text) + 8);
 
     scene.render({ ...snapshot(state), selectedId: 'alone' }, viewport);
     scene.advanceAnimations(180);
@@ -115,7 +114,6 @@ describe('spatial field scene', () => {
       text: 'First',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'second', text: 'Second', x: 100 };
@@ -150,7 +148,6 @@ describe('spatial field scene', () => {
       text: 'Held',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     scene.render(snapshot({ thoughts: [held], attachments: [] }), viewport);
@@ -171,7 +168,6 @@ describe('spatial field scene', () => {
       text: 'Moving',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
@@ -193,7 +189,6 @@ describe('spatial field scene', () => {
       text: 'Appearing',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     scene.render(snapshot(), viewport);
@@ -217,7 +212,6 @@ describe('spatial field scene', () => {
       text: 'Candidate',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
@@ -229,8 +223,12 @@ describe('spatial field scene', () => {
     );
 
     expect(thoughts(scene).children[0]).toBe(renderedThought);
-    expect(clusterOutline(scene).bounds.minX).toBe(-82);
-    expect(clusterOutline(scene).bounds.maxX).toBe(82);
+    expect(clusterOutline(scene).bounds.minX).toBeCloseTo(
+      -thoughtRadius(thought.text) - 8,
+    );
+    expect(clusterOutline(scene).bounds.maxX).toBeCloseTo(
+      thoughtRadius(thought.text) + 8,
+    );
   });
 
   it('reserves texture space for the full filtered Thought shadow', () => {
@@ -240,19 +238,19 @@ describe('spatial field scene', () => {
       text: 'Shadowed',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
 
     const cachedVisual = thoughts(scene).children[0].children[0] as Container;
     const cachePadding = cachedVisual.children[0] as Graphics;
+    const radius = thoughtRadius(thought.text);
 
     expect(cachedVisual.children).toHaveLength(3);
-    expect(cachePadding.bounds.minX).toBeLessThanOrEqual(-thought.radius - 34);
-    expect(cachePadding.bounds.maxX).toBeGreaterThanOrEqual(thought.radius + 34);
-    expect(cachePadding.bounds.minY).toBeLessThanOrEqual(-thought.radius - 34);
-    expect(cachePadding.bounds.maxY).toBeGreaterThanOrEqual(thought.radius + 34);
+    expect(cachePadding.bounds.minX).toBeLessThanOrEqual(-radius - 34);
+    expect(cachePadding.bounds.maxX).toBeGreaterThanOrEqual(radius + 34);
+    expect(cachePadding.bounds.minY).toBeLessThanOrEqual(-radius - 34);
+    expect(cachePadding.bounds.maxY).toBeGreaterThanOrEqual(radius + 34);
   });
 
   it('raises a Thought as its final Bond is removed', () => {
@@ -273,7 +271,6 @@ describe('spatial field scene', () => {
       text: 'First',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'second', text: 'Second', x: 100 };
@@ -315,7 +312,6 @@ describe('spatial field scene', () => {
       text: 'First',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'second', text: 'Second', x: 100 };
@@ -346,7 +342,6 @@ describe('spatial field scene', () => {
       text: 'First',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'second', text: 'Second', x: 100 };
@@ -369,7 +364,6 @@ describe('spatial field scene', () => {
       text: 'Editing',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'visible', text: 'Visible', x: 100 };
@@ -394,7 +388,6 @@ describe('spatial field scene', () => {
       text: 'Deleted',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     scene.render(snapshot({ thoughts: [deleted], attachments: [] }), viewport);
@@ -417,7 +410,6 @@ describe('spatial field scene', () => {
       text: 'First',
       x: 0,
       y: 0,
-      radius: 74,
       tone: 0,
     };
     const second = { ...first, id: 'second', x: 200 };
