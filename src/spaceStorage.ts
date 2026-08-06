@@ -10,21 +10,24 @@ export function loadStoredSpace(storage: SpaceStorage | null): SpaceState | null
   try {
     const stored = storage.getItem(SPACE_STORAGE_KEY);
     if (!stored) return null;
-    const parsed: unknown = JSON.parse(stored);
-    if (!isSpaceState(parsed)) return null;
-    return {
-      thoughts: parsed.thoughts.map(({ id, text, x, y, tone }) => ({
-        id,
-        text,
-        x,
-        y,
-        tone,
-      })),
-      attachments: parsed.attachments,
-    };
+    return parseSpaceState(JSON.parse(stored));
   } catch {
     return null;
   }
+}
+
+export function parseSpaceState(value: unknown): SpaceState | null {
+  if (!isSpaceState(value)) return null;
+  return {
+    thoughts: value.thoughts.map(({ id, text, x, y, tone }) => ({
+      id,
+      text,
+      x,
+      y,
+      tone,
+    })),
+    attachments: value.attachments,
+  };
 }
 
 export function saveStoredSpace(

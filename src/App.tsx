@@ -1,5 +1,5 @@
 import { Provider, useAtom, useAtomValue, useSetAtom } from 'jotai';
-import { Moon } from 'lucide-react';
+import { Download, Moon, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { css } from '../styled-system/css';
 
@@ -27,22 +27,29 @@ import {
   type SpatialFieldInputAdapter,
 } from './spatialFieldInputAdapter';
 import type { SpaceStorage } from './spaceStorage';
+import { parseSpaceImport, serializeSpaceExport } from './spaceTransfer';
 import { createThoughtAuthoring, type ThoughtAuthoringState } from './thoughtAuthoring';
 import { hasThoughtAttachment } from './thoughtActions';
 import { thoughtRadius } from './thoughtTextLayout';
 import { composerScaleForThought } from './thoughtTransition';
+import type { SpaceState } from './types';
 
 type ColorMode = 'light' | 'dark';
 
 function WordmarkMenu({
   colorMode,
   onColorModeChange,
+  onExport,
+  onImport,
 }: {
   colorMode: ColorMode;
   onColorModeChange: (mode: ColorMode) => void;
+  onExport: () => void;
+  onImport: (space: SpaceState) => boolean;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -90,7 +97,54 @@ function WordmarkMenu({
             <span />
           </span>
         </button>
+        <button
+          type="button"
+          className={menuActionClass}
+          role="menuitem"
+          tabIndex={open ? 0 : -1}
+          onClick={() => {
+            onExport();
+            setOpen(false);
+          }}
+        >
+          <Download size={16} strokeWidth={1.5} aria-hidden="true" />
+          <span>Export</span>
+        </button>
+        <button
+          type="button"
+          className={menuActionClass}
+          role="menuitem"
+          tabIndex={open ? 0 : -1}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+          <span>Import</span>
+        </button>
       </div>
+      <input
+        ref={fileInputRef}
+        className={fileInputClass}
+        type="file"
+        accept=".json,application/json"
+        tabIndex={-1}
+        onChange={async (event) => {
+          const input = event.currentTarget;
+          const file = input.files?.[0];
+          if (!file) return;
+          try {
+            const imported = parseSpaceImport(await file.text());
+            if (!imported) {
+              window.alert('That file is not a valid Ephermanence export.');
+              return;
+            }
+            if (onImport(imported)) setOpen(false);
+          } catch {
+            window.alert('That file could not be read.');
+          } finally {
+            input.value = '';
+          }
+        }}
+      />
     </div>
   );
 }
@@ -127,7 +181,21 @@ function AppView({ runtime }: { runtime: AppRuntime }) {
     <>
       <main className={appShellClass}>
         <header className={appHeaderClass}>
-          <WordmarkMenu colorMode={colorMode} onColorModeChange={setColorMode} />
+          <WordmarkMenu
+            colorMode={colorMode}
+            onColorModeChange={setColorMode}
+            onExport={() => downloadSpace(runtime.interaction.read().state)}
+            onImport={(space) => {
+              if (
+                runtime.interaction.read().state.thoughts.length > 0 &&
+                !window.confirm('Replace the current space with this import?')
+              ) {
+                return false;
+              }
+              runtime.fieldInput.send({ type: 'replace-space', state: space });
+              return true;
+            }}
+          />
         </header>
         <ThoughtSpace
           interaction={runtime.interaction}
@@ -355,7 +423,7 @@ const wordmarkItemsClass = css({
   transition:
     'height 240ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease, visibility 0s linear 240ms',
   '[data-open] &': {
-    height: '41px',
+    height: '111px',
     opacity: 1,
     visibility: 'visible',
     transitionDelay: '0ms',
@@ -364,10 +432,12 @@ const wordmarkItemsClass = css({
 
 const themeChoiceClass = css({
   display: 'grid',
+  height: '35px',
+  width: 'calc(100% - 12px)',
   gridTemplateColumns: '16px 1fr auto',
   gap: '7px',
   alignItems: 'center',
-  margin: '0 6px 6px',
+  margin: '0 6px',
   padding: '9px 8px',
   overflow: 'hidden',
   border: 0,
@@ -380,6 +450,39 @@ const themeChoiceClass = css({
   '[data-theme=dark] &': {
     borderTopColor: 'rgb(236 242 238 / 10%)',
   },
+});
+
+const menuActionClass = css({
+  display: 'grid',
+  height: '35px',
+  width: 'calc(100% - 12px)',
+  gridTemplateColumns: '16px 1fr',
+  gap: '7px',
+  alignItems: 'center',
+  margin: '0 6px',
+  padding: '9px 8px',
+  overflow: 'hidden',
+  border: 0,
+  background: 'transparent',
+  color: 'inherit',
+  cursor: 'pointer',
+  fontSize: '13px',
+  textAlign: 'left',
+  _hover: {
+    background: 'rgb(39 48 44 / 6%)',
+  },
+  '[data-theme=dark] &': {
+    _hover: {
+      background: 'rgb(236 242 238 / 7%)',
+    },
+  },
+  '&:last-child': {
+    marginBottom: '6px',
+  },
+});
+
+const fileInputClass = css({
+  display: 'none',
 });
 
 const themeSwitchClass = css({
@@ -419,6 +522,20 @@ function readColorMode(): ColorMode {
   } catch {
     return 'light';
   }
+}
+
+function downloadSpace(space: SpaceState) {
+  const blob = new Blob([serializeSpaceExport(space)], {
+    type: 'application/json',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `ephermanence-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function readAmbientBubbleSettings(): AmbientBubbleSettings {

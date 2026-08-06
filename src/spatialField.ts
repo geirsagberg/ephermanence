@@ -16,7 +16,8 @@ export type SpatialFieldInput =
   | { type: 'clear-selection' }
   | { type: 'delete-selection' }
   | { type: 'edit-thought'; id: string; text: string }
-  | { type: 'create-thought'; id: string; text: string; position: Point; tone: number };
+  | { type: 'create-thought'; id: string; text: string; position: Point; tone: number }
+  | { type: 'replace-space'; state: SpaceState };
 
 export type SpatialFieldSnapshot = {
   state: SpaceState;
@@ -194,6 +195,13 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
             ],
           };
           selectedId = null;
+          break;
+        }
+        case 'replace-space': {
+          state = input.state;
+          selectedId = null;
+          attachmentCandidateIds = [];
+          drag = null;
           break;
         }
       }

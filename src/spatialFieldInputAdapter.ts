@@ -16,6 +16,7 @@ import type {
 } from './spatialInteraction';
 import type { Point } from './spatialField';
 import type { ThoughtAuthoringCommand } from './thoughtAuthoring';
+import type { SpaceState } from './types';
 
 export type SpatialFieldPresentation = {
   ambientBubbleSettings: AmbientBubbleSettings;
@@ -41,6 +42,7 @@ export type SpatialFieldAdapterInput =
   | { type: 'present-authoring'; presentation?: ThoughtAuthoringPresentation }
   | { type: 'authoring-command'; command: ThoughtAuthoringCommand }
   | { type: 'launcher-open'; point: Point }
+  | { type: 'replace-space'; state: SpaceState }
   | {
       type: 'thought-control';
       thoughtId: string;
@@ -512,6 +514,10 @@ export function createSpatialFieldInputAdapter({
       }
       if (input.type === 'thought-control') {
         sendControl(input.control, input.thoughtId, input.event);
+        return;
+      }
+      if (input.type === 'replace-space') {
+        dispatch(input);
         return;
       }
       dispatch(

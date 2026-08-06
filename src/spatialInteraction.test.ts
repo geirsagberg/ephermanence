@@ -245,6 +245,28 @@ describe('spatial field interaction', () => {
     expect(memory.writes()).toBe(1);
   });
 
+  it('replaces and persists the complete space during import', () => {
+    const memory = memoryStorage();
+    const spatialInteraction = createSpatialInteraction(
+      { thoughts: [thought('old', 0)], attachments: [] },
+      memory.storage,
+    );
+    const imported = {
+      thoughts: [thought('first', 10), thought('second', 20)],
+      attachments: [['first', 'second']] as [string, string][],
+    };
+
+    const transition = spatialInteraction.dispatch({
+      type: 'replace-space',
+      state: imported,
+    });
+
+    expect(transition.snapshot.state).toEqual(imported);
+    expect(transition.render).toBe(true);
+    expect(JSON.parse(memory.read()!)).toEqual(imported);
+    expect(memory.writes()).toBe(1);
+  });
+
   it('waits until pointer-up to commit a dragged Thought', () => {
     const existing = thought('moving', 0, 0);
     const memory = memoryStorage();

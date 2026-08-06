@@ -46,7 +46,8 @@ export type SpatialInteractionInput =
   | { type: 'wheel'; point: Point; deltaY: number; pinching: boolean }
   | { type: 'key-down'; key: '+' | '-' | '0' }
   | { type: 'viewport-resize'; size: Size }
-  | { type: 'launcher-open'; point: Point };
+  | { type: 'launcher-open'; point: Point }
+  | { type: 'replace-space'; state: SpaceState };
 
 export type SpatialInteractionEffect =
   | {
@@ -264,7 +265,8 @@ function isDurableFieldInput(input: SpatialInteractionInput) {
   return (
     input.type === 'create-thought' ||
     input.type === 'edit-thought' ||
-    input.type === 'delete-selection'
+    input.type === 'delete-selection' ||
+    input.type === 'replace-space'
   );
 }
 
