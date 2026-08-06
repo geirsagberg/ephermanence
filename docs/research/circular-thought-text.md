@@ -9,7 +9,9 @@
 
 ## Implementation
 
-The renderer uses one centered `Text` object. Before creating it:
+The Thought visual-layout module owns radius, typography, and circular wrapping behind
+`thoughtRadius` and `layoutThoughtText`. The renderer uses one centered `Text` object.
+Before creating it:
 
 1. Calculate each prospective line's available width from the horizontal chord of an inset circle.
 2. Measure candidate word ranges with `CanvasTextMetrics.measureText` and the final `TextStyle`.

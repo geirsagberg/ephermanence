@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createSpatialField, thoughtRadius, type Point } from './spatialField';
+import { createSpatialField, type Point } from './spatialField';
 import type { Attachment, SpaceState, Thought } from './types';
 
 function thought(id: string, x: number, radius = 50): Thought {
@@ -249,7 +249,7 @@ describe('spatial field transitions', () => {
     });
   });
 
-  it('creates a thought using field-owned size and its lifecycle tone', () => {
+  it('creates a thought with its derived size and lifecycle tone', () => {
     const spatialField = field([thought('existing', 100)]);
 
     const snapshot = spatialField.dispatch({
@@ -269,10 +269,5 @@ describe('spatial field transitions', () => {
       tone: 3,
     });
     expect(created.radius).toBeGreaterThan(0);
-  });
-
-  it('scales thought area with text length without overgrowing the longest thoughts', () => {
-    expect(thoughtRadius('x'.repeat(98))).toBeCloseTo(102.3);
-    expect(thoughtRadius('x'.repeat(220))).toBeCloseTo(135.63);
   });
 });

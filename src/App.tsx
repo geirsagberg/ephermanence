@@ -19,7 +19,6 @@ import {
 import { SpatialThoughtComposer } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { spaceForQuery } from './initialSpace';
-import { thoughtRadius } from './spatialField';
 import { createSpatialInteraction } from './spatialInteraction';
 import {
   createSpatialFieldInputAdapter,
@@ -28,6 +27,7 @@ import {
 import type { SpaceStorage } from './spaceStorage';
 import { createThoughtAuthoring, type ThoughtAuthoringState } from './thoughtAuthoring';
 import { getThoughtTone } from './thoughtTone';
+import { thoughtRadius } from './thoughtTextLayout';
 import { composerScaleForThought } from './thoughtTransition';
 
 function Wordmark() {

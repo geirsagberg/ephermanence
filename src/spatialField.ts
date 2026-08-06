@@ -1,3 +1,4 @@
+import { thoughtRadius } from './thoughtTextLayout';
 import type { Attachment, SpaceState, Thought } from './types';
 
 export type Point = { x: number; y: number };
@@ -233,14 +234,6 @@ function bringThoughtToFrontWhenAlone(
 ) {
   const attached = attachments.some(([a, b]) => a === id || b === id);
   return attached ? thoughts : bringThoughtToFront(thoughts, id);
-}
-
-export function thoughtRadius(text: string) {
-  const minimumRadius = 64;
-  const maximumRadius = 144;
-  const areaPerCharacter = 65;
-  const radius = Math.sqrt(minimumRadius ** 2 + text.length * areaPerCharacter);
-  return Math.min(maximumRadius, radius);
 }
 
 export function connectedThoughtIds(id: string, attachments: Attachment[]) {

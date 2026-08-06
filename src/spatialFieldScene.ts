@@ -16,7 +16,7 @@ import type {
   SpatialInteractionSnapshot,
 } from './spatialInteraction';
 import { getThoughtTone } from './thoughtTone';
-import { wrapTextInCircle } from './thoughtTextLayout';
+import { layoutThoughtText } from './thoughtTextLayout';
 
 export type WorldBounds = {
   left: number;
@@ -442,21 +442,18 @@ function createThoughtBubble(
     body.filters = [shadowFilter];
   }
 
-  const textStyle = new TextStyle({
-    fontFamily: 'Iowan Old Style, Baskerville, Georgia, serif',
-    fontSize: thought.text.length > 48 ? 16 : 17,
-    fill: 0x26312d,
-    align: 'center',
-    lineHeight: 23,
+  let textStyle: TextStyle | null = null;
+  const textLayout = layoutThoughtText({
+    text: thought.text,
+    radius: thought.radius,
+    measureText: (text, style) => {
+      textStyle ??= new TextStyle(style);
+      return CanvasTextMetrics.measureText(text, textStyle, undefined, false).width;
+    },
   });
-  const wrappedText = wrapTextInCircle(
-    thought.text,
-    thought.radius,
-    23,
-    (text) => CanvasTextMetrics.measureText(text, textStyle, undefined, false).width,
-  );
+  textStyle ??= new TextStyle(textLayout.style);
   const label = new Text({
-    text: wrappedText,
+    text: textLayout.text,
     autoGenerateMipmaps: true,
     style: textStyle,
   });

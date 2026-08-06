@@ -1,8 +1,56 @@
-type MeasureText = (text: string) => number;
+export type ThoughtTextStyle = {
+  fontFamily: string;
+  fontSize: number;
+  fill: number;
+  align: 'center';
+  lineHeight: number;
+};
+
+type MeasureText = (text: string, style: ThoughtTextStyle) => number;
+type MeasureWidth = (text: string) => number;
 
 const textInset = 18;
 
-export function circleLineWidths(radius: number, lineCount: number, lineHeight: number) {
+export function thoughtRadius(text: string) {
+  const minimumRadius = 64;
+  const maximumRadius = 144;
+  const areaPerCharacter = 65;
+  const radius = Math.sqrt(minimumRadius ** 2 + text.length * areaPerCharacter);
+  return Math.min(maximumRadius, radius);
+}
+
+export function layoutThoughtText({
+  text,
+  radius,
+  measureText,
+}: {
+  text: string;
+  radius: number;
+  measureText: MeasureText;
+}) {
+  const style: ThoughtTextStyle = {
+    fontFamily: 'Iowan Old Style, Baskerville, Georgia, serif',
+    fontSize: text.length > 48 ? 16 : 17,
+    fill: 0x26312d,
+    align: 'center',
+    lineHeight: 23,
+  };
+  const measuredWidths = new Map<string, number>();
+  const measure = (value: string) => {
+    const cached = measuredWidths.get(value);
+    if (cached !== undefined) return cached;
+    const width = measureText(value, style);
+    measuredWidths.set(value, width);
+    return width;
+  };
+
+  return {
+    text: wrapTextInCircle(text, radius, style.lineHeight, measure),
+    style,
+  };
+}
+
+function circleLineWidths(radius: number, lineCount: number, lineHeight: number) {
   const innerRadius = Math.max(lineHeight, radius - textInset);
   const center = (lineCount - 1) / 2;
 
@@ -12,11 +60,11 @@ export function circleLineWidths(radius: number, lineCount: number, lineHeight: 
   });
 }
 
-export function wrapTextInCircle(
+function wrapTextInCircle(
   text: string,
   radius: number,
   lineHeight: number,
-  measureText: MeasureText,
+  measureText: MeasureWidth,
 ) {
   const words = text
     .trim()
@@ -33,14 +81,6 @@ export function wrapTextInCircle(
     );
   if (words.length < 2) return text;
 
-  const measuredWidths = new Map<string, number>();
-  const measure = (value: string) => {
-    const cached = measuredWidths.get(value);
-    if (cached !== undefined) return cached;
-    const width = measureText(value);
-    measuredWidths.set(value, width);
-    return width;
-  };
   const maxLines = Math.min(
     words.length,
     Math.floor((2 * (radius - textInset)) / lineHeight),
@@ -49,18 +89,18 @@ export function wrapTextInCircle(
     const lines = fitWordsToLines(
       words,
       circleLineWidths(radius, lineCount, lineHeight),
-      measure,
+      measureText,
     );
     if (lines) return lines.join('\n');
   }
 
-  return wrapWordsAtWidth(words, radius * 1.42, measure).join('\n');
+  return wrapWordsAtWidth(words, radius * 1.42, measureText).join('\n');
 }
 
 function wrapWordsAtWidth(
   words: { text: string; breakBefore: boolean }[],
   width: number,
-  measureText: MeasureText,
+  measureText: MeasureWidth,
 ) {
   const lines: string[] = [];
   let currentLine = '';
@@ -88,7 +128,7 @@ function wrapWordsAtWidth(
   return lines;
 }
 
-function splitWordToWidth(word: string, width: number, measureText: MeasureText) {
+function splitWordToWidth(word: string, width: number, measureText: MeasureWidth) {
   if (measureText(word) <= width) return [word];
 
   const pieces: string[] = [];
@@ -109,7 +149,7 @@ function splitWordToWidth(word: string, width: number, measureText: MeasureText)
 function fitWordsToLines(
   words: { text: string; breakBefore: boolean }[],
   widths: number[],
-  measureText: MeasureText,
+  measureText: MeasureWidth,
 ) {
   const memo = new Map<string, string[] | null>();
 

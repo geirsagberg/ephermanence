@@ -1,25 +1,35 @@
 import { describe, expect, it } from 'vitest';
 
-import { thoughtRadius } from './spatialField';
-import { circleLineWidths, wrapTextInCircle } from './thoughtTextLayout';
+import { layoutThoughtText, thoughtRadius } from './thoughtTextLayout';
 
 const measureMonospace = (text: string) => text.length * 10;
+const layout = (text: string, radius: number, measureText = measureMonospace) =>
+  layoutThoughtText({
+    text,
+    radius,
+    measureText: (value) => measureText(value),
+  });
+
+function availableLineWidths(radius: number, lineCount: number, lineHeight: number) {
+  const innerRadius = radius - 18;
+  const center = (lineCount - 1) / 2;
+  return Array.from({ length: lineCount }, (_, index) => {
+    const lineCenterY = (index - center) * lineHeight;
+    return 2 * Math.sqrt(Math.max(0, innerRadius ** 2 - lineCenterY ** 2));
+  });
+}
 
 describe('circular thought text layout', () => {
-  it('offers more width to middle lines than edge lines', () => {
-    const widths = circleLineWidths(100, 5, 20);
-
-    expect(widths[0]).toBeCloseTo(widths[4]);
-    expect(widths[1]).toBeCloseTo(widths[3]);
-    expect(widths[2]).toBeGreaterThan(widths[1]);
-    expect(widths[1]).toBeGreaterThan(widths[0]);
+  it('scales thought area with text length without overgrowing the longest thoughts', () => {
+    expect(thoughtRadius('x'.repeat(98))).toBeCloseTo(102.3);
+    expect(thoughtRadius('x'.repeat(220))).toBeCloseTo(135.63);
   });
 
   it('fits every line within its circular chord without losing words', () => {
     const text = 'one two three four five six seven eight nine ten eleven twelve';
-    const wrapped = wrapTextInCircle(text, 100, 20, measureMonospace);
-    const lines = wrapped.split('\n');
-    const widths = circleLineWidths(100, lines.length, 20);
+    const textLayout = layout(text, 100);
+    const lines = textLayout.text.split('\n');
+    const widths = availableLineWidths(100, lines.length, textLayout.style.lineHeight);
 
     expect(lines.join(' ')).toBe(text);
     for (const [index, line] of lines.entries()) {
@@ -29,14 +39,9 @@ describe('circular thought text layout', () => {
   });
 
   it('keeps authored line breaks', () => {
-    const wrapped = wrapTextInCircle(
-      'first paragraph\nsecond paragraph',
-      100,
-      20,
-      measureMonospace,
-    );
+    const textLayout = layout('first paragraph\nsecond paragraph', 100);
 
-    expect(wrapped).toContain('paragraph\nsecond');
+    expect(textLayout.text).toContain('paragraph\nsecond');
   });
 
   it.each([
@@ -44,12 +49,12 @@ describe('circular thought text layout', () => {
     'A long thought is maybe not the best way to determine what you want',
   ])('never abandons wrapping for long text: %s', (text) => {
     const radius = thoughtRadius(text);
-    const wrapped = wrapTextInCircle(text, radius, 23, measureMonospace);
+    const textLayout = layout(text, radius);
 
-    expect(wrapped).toContain('\n');
-    expect(Math.max(...wrapped.split('\n').map(measureMonospace))).toBeLessThanOrEqual(
-      radius * 1.42,
-    );
+    expect(textLayout.text).toContain('\n');
+    expect(
+      Math.max(...textLayout.text.split('\n').map(measureMonospace)),
+    ).toBeLessThanOrEqual(radius * 1.42);
   });
 
   it('keeps maximum-length text inside the circular line widths', () => {
@@ -57,8 +62,9 @@ describe('circular thought text layout', () => {
       'What happens next? What happens next? What happens next? lorem iopsum dolor amet sojok wfe afw ewaf awef awef awe What happens next? What happens next? What happens next? lorem iopsum dolor amet sojok wfe afw ewaf awef a';
     const radius = thoughtRadius(text);
     const measureText = (value: string) => value.length * 8;
-    const lines = wrapTextInCircle(text, radius, 23, measureText).split('\n');
-    const widths = circleLineWidths(radius, lines.length, 23);
+    const textLayout = layout(text, radius, measureText);
+    const lines = textLayout.text.split('\n');
+    const widths = availableLineWidths(radius, lines.length, textLayout.style.lineHeight);
 
     for (const [index, line] of lines.entries()) {
       expect(measureText(line)).toBeLessThanOrEqual(widths[index]);
