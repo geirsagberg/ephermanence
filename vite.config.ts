@@ -3,7 +3,6 @@ import { defineConfig } from 'vite-plus';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: '/ephermanence/',
   plugins: [
     react(),
     VitePWA({
@@ -12,9 +11,9 @@ export default defineConfig({
         name: 'Ephermanence',
         short_name: 'Ephermanence',
         description: 'A calm workbench for unfinished thoughts.',
-        id: '/ephermanence/',
-        start_url: '/ephermanence/',
-        scope: '/ephermanence/',
+        id: '/',
+        start_url: '/',
+        scope: '/',
         display: 'standalone',
         background_color: '#ebe8df',
         theme_color: '#ebe8df',

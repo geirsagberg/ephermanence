@@ -6,8 +6,6 @@ together.
 Thoughts and their bonds are stored locally in the browser. Add `?debug` to the URL to
 open the sample spatial field without reading or changing the stored field.
 
-[Open Ephermanence](https://geirsagberg.github.io/ephermanence/)
-
 ## Controls
 
 - Double-click empty space to create a thought.
@@ -34,8 +32,6 @@ bun run check
 bun run test
 bun run build
 ```
-
-Pushes to `main` are automatically deployed to GitHub Pages.
 
 ## License
 
