@@ -4,26 +4,22 @@ import type {
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from 'react';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { css, cx } from '../../styled-system/css';
 
 import {
   defaultAmbientBubbleSettings,
-  mountSpatialFieldScene,
   type AmbientBubbleSettings,
-  type MountedSpatialFieldScene,
 } from '../spatialFieldScene';
-import {
-  createControlClickSuppressor,
-  createPointerActivationGuard,
-} from '../pointerActivation';
-import { createSingleThoughtLongPress } from '../singleThoughtLongPress';
 import type {
   SpatialInteraction,
-  SpatialInteractionInput,
   SpatialInteractionSnapshot,
-  SpatialInteractionTransition,
 } from '../spatialInteraction';
+import type {
+  SpatialFieldInputAdapter,
+  ThoughtControl,
+  ThoughtControlEvent,
+} from '../spatialFieldInputAdapter';
 import type { ThoughtAuthoring } from '../thoughtAuthoring';
 import {
   hasThoughtAttachment,
@@ -35,49 +31,28 @@ import { ThoughtLauncher } from './ThoughtLauncher';
 
 type ThoughtSpaceProps = {
   interaction: SpatialInteraction;
+  inputAdapter: SpatialFieldInputAdapter;
   snapshot: SpatialInteractionSnapshot;
-  onInput: (input: SpatialInteractionInput) => SpatialInteractionTransition;
   findFreePosition: ThoughtAuthoring['findFreePosition'];
+  launchRequest: number;
   composerOpen?: boolean;
   editingThoughtId?: string;
   ambientBubbleSettings?: AmbientBubbleSettings;
   className?: string;
 };
 
-type RenderedSceneInputs = {
-  snapshot: SpatialInteractionSnapshot;
-  ambientBubbleSettings: AmbientBubbleSettings;
-  editingThoughtId?: string;
-};
-
 export function ThoughtSpace({
   interaction,
+  inputAdapter,
   snapshot,
-  onInput,
   findFreePosition,
+  launchRequest,
   composerOpen = false,
   editingThoughtId,
   ambientBubbleSettings = defaultAmbientBubbleSettings,
   className = '',
 }: ThoughtSpaceProps) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const [launchRequest, setLaunchRequest] = useState(0);
-  const onInputRef = useRef(onInput);
-  const ambientBubbleSettingsRef = useRef(ambientBubbleSettings);
-  const editingThoughtIdRef = useRef(editingThoughtId);
-  const renderSpaceRef = useRef(() => {});
-  const renderedSceneInputsRef = useRef<RenderedSceneInputs | null>(null);
-  const actionActivationRef = useRef(createPointerActivationGuard());
-  const controlClickSuppressorRef = useRef(createControlClickSuppressor());
-  const singleThoughtLongPressRef = useRef(
-    createSingleThoughtLongPress(({ id, point }) => {
-      onInputRef.current({ type: 'thought-pointer-down', id, point, singular: true });
-    }),
-  );
-
-  onInputRef.current = onInput;
-  ambientBubbleSettingsRef.current = ambientBubbleSettings;
-  editingThoughtIdRef.current = editingThoughtId;
   const getNewThoughtPosition = () => {
     const current = interaction.read();
     const currentZoom = current.camera.zoom;
@@ -93,217 +68,15 @@ export function ThoughtSpace({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-
-    let cancelled = false;
-    let canvas: (HTMLCanvasElement & { cleanupSpace?: () => void }) | null = null;
-    let scene: MountedSpatialFieldScene | null = null;
-    let destroyed = false;
-    let renderSpace = () => {};
-    const destroyScene = () => {
-      if (destroyed) return;
-      destroyed = true;
-      scene?.destroy();
-    };
-
-    void mountSpatialFieldScene(host, interaction, (id, point, singular, pointerId) => {
-      onInputRef.current({ type: 'thought-pointer-down', id, point, singular });
-      if (singular) {
-        singleThoughtLongPressRef.current.cancel();
-      } else {
-        singleThoughtLongPressRef.current.begin({ id, point, pointerId });
-      }
-    }).then((mountedScene) => {
-      scene = mountedScene;
-      if (cancelled) {
-        destroyScene();
-        return;
-      }
-      canvas = mountedScene.canvas;
-      renderSpace = () => {
-        mountedScene.render(
-          ambientBubbleSettingsRef.current,
-          editingThoughtIdRef.current,
-        );
-        renderedSceneInputsRef.current = {
-          snapshot: interaction.read(),
-          ambientBubbleSettings: ambientBubbleSettingsRef.current,
-          editingThoughtId: editingThoughtIdRef.current,
-        };
-      };
-      renderSpaceRef.current = renderSpace;
-
-      const onMove = (event: PointerEvent) => {
-        const rect = mountedScene.canvas.getBoundingClientRect();
-        const x = event.clientX - rect.left;
-        const y = event.clientY - rect.top;
-        singleThoughtLongPressRef.current.move(event.pointerId, { x, y });
-        const transition = onInputRef.current({
-          type: 'surface-pointer-move',
-          point: { x, y },
-          pointerId: event.pointerId,
-          pointerKind: event.pointerType,
-          inside: x >= 0 && y >= 0 && x <= rect.width && y <= rect.height,
-        });
-        if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
-        if (transition.render) renderSpace();
-      };
-
-      const onUp = (event: PointerEvent) => {
-        singleThoughtLongPressRef.current.end(event.pointerId);
-        const transition = onInputRef.current({
-          type: 'surface-pointer-up',
-          pointerId: event.pointerId,
-          pointerKind: event.pointerType,
-        });
-        if (transition.cursor && canvas) canvas.style.cursor = transition.cursor;
-        if (transition.render) renderSpace();
-      };
-
-      const onDoubleClick = (event: MouseEvent) => {
-        const rect = mountedScene.canvas.getBoundingClientRect();
-        onInputRef.current({
-          type: 'canvas-double-click',
-          point: {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-          },
-        });
-        event.preventDefault();
-      };
-
-      const onCanvasClick = (event: MouseEvent) => {
-        if (controlClickSuppressorRef.current.consume(event.timeStamp)) return;
-        const rect = mountedScene.canvas.getBoundingClientRect();
-        onInputRef.current({
-          type: 'canvas-click',
-          point: {
-            x: event.clientX - rect.left,
-            y: event.clientY - rect.top,
-          },
-        });
-      };
-
-      const onPointerDown = (event: PointerEvent) => {
-        if (event.button !== 0) return;
-        singleThoughtLongPressRef.current.cancelForOtherPointer(event.pointerId);
-        const rect = mountedScene.canvas.getBoundingClientRect();
-        const point = {
-          x: event.clientX - rect.left,
-          y: event.clientY - rect.top,
-        };
-
-        const transition = onInputRef.current({
-          type: 'canvas-pointer-down',
-          point,
-          pointerId: event.pointerId,
-          pointerKind: event.pointerType,
-        });
-        if (transition.cursor) canvas!.style.cursor = transition.cursor;
-        if (event.pointerType === 'touch' && transition.render) {
-          event.preventDefault();
-        }
-        if (transition.render) renderSpace();
-      };
-
-      const onWheel = (event: WheelEvent) => {
-        event.preventDefault();
-        const rect = mountedScene.canvas.getBoundingClientRect();
-        const transition = onInputRef.current({
-          type: 'wheel',
-          point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
-          deltaY: event.deltaY,
-          pinching: event.ctrlKey,
-        });
-        if (transition.render) renderSpace();
-      };
-
-      const onKeyDown = (event: KeyboardEvent) => {
-        const target = event.target;
-        if (
-          target instanceof HTMLElement &&
-          target.matches('input, textarea, select, button, [contenteditable="true"]')
-        ) {
-          return;
-        }
-
-        if (
-          event.key !== 'Enter' &&
-          event.key !== '+' &&
-          event.key !== '-' &&
-          event.key !== '0'
-        ) {
-          return;
-        }
-        if (event.key === 'Enter' && event.repeat) return;
-
-        event.preventDefault();
-        if (event.key === 'Enter') {
-          setLaunchRequest((request) => request + 1);
-          return;
-        }
-        const transition = onInputRef.current({ type: 'key-down', key: event.key });
-        if (transition.render) renderSpace();
-      };
-
-      const syncViewport = () => {
-        const transition = onInputRef.current({
-          type: 'viewport-resize',
-          size: {
-            width: mountedScene.screen.width,
-            height: mountedScene.screen.height,
-          },
-        });
-        if (transition.render) renderSpace();
-      };
-
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
-      window.addEventListener('pointercancel', onUp);
-      window.addEventListener('keydown', onKeyDown);
-      canvas.addEventListener('click', onCanvasClick);
-      canvas.addEventListener('dblclick', onDoubleClick);
-      canvas.addEventListener('pointerdown', onPointerDown);
-      canvas.addEventListener('wheel', onWheel, { passive: false });
-      const stopResize = mountedScene.onResize(syncViewport);
-      syncViewport();
-
-      canvas.dataset.cleanup = 'ready';
-      Object.assign(canvas, {
-        cleanupSpace: () => {
-          window.removeEventListener('pointermove', onMove);
-          window.removeEventListener('pointerup', onUp);
-          window.removeEventListener('pointercancel', onUp);
-          window.removeEventListener('keydown', onKeyDown);
-          canvas?.removeEventListener('click', onCanvasClick);
-          canvas?.removeEventListener('dblclick', onDoubleClick);
-          canvas?.removeEventListener('pointerdown', onPointerDown);
-          canvas?.removeEventListener('wheel', onWheel);
-          singleThoughtLongPressRef.current.cancel();
-          stopResize();
-        },
-      });
-    });
-
-    return () => {
-      cancelled = true;
-      renderSpaceRef.current = () => {};
-      renderedSceneInputsRef.current = null;
-      canvas?.cleanupSpace?.();
-      if (scene) destroyScene();
-    };
-  }, [interaction]);
+    return inputAdapter.mount(host);
+  }, [inputAdapter]);
 
   useEffect(() => {
-    const rendered = renderedSceneInputsRef.current;
-    if (
-      rendered?.snapshot === snapshot &&
-      rendered.ambientBubbleSettings === ambientBubbleSettings &&
-      rendered.editingThoughtId === editingThoughtId
-    ) {
-      return;
-    }
-    renderSpaceRef.current();
-  }, [snapshot, ambientBubbleSettings, editingThoughtId]);
+    inputAdapter.send({
+      type: 'present',
+      presentation: { ambientBubbleSettings, hiddenThoughtId: editingThoughtId },
+    });
+  }, [inputAdapter, snapshot, ambientBubbleSettings, editingThoughtId]);
 
   const selectedThought = snapshot.state.thoughts.find(
     (thought) => thought.id === snapshot.selectedId,
@@ -319,49 +92,11 @@ export function ThoughtSpace({
   const selectedThoughtHasBond =
     selectedThought &&
     hasThoughtAttachment(selectedThought.id, snapshot.state.attachments);
-  const armAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    actionActivationRef.current.begin(event.pointerId, {
-      x: event.clientX,
-      y: event.clientY,
-    });
-  };
-  const completeAction = (
-    event: ReactPointerEvent<HTMLButtonElement>,
-    action: () => void,
-  ) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.pointerType !== 'mouse') {
-      controlClickSuppressorRef.current.arm(event.timeStamp);
-    }
-    if (
-      actionActivationRef.current.complete(event.pointerId, {
-        x: event.clientX,
-        y: event.clientY,
-      })
-    ) {
-      action();
-    }
-  };
-  const cancelAction = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    actionActivationRef.current.cancel(event.pointerId);
-    controlClickSuppressorRef.current.cancel();
-  };
-  const activateFromKeyboard = (
-    event: ReactMouseEvent<HTMLButtonElement>,
-    action: () => void,
-  ) => {
-    if (event.detail !== 0) {
-      controlClickSuppressorRef.current.cancel();
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    action();
-  };
+  const sendControl = (
+    control: ThoughtControl,
+    thoughtId: string,
+    event: ThoughtControlEvent,
+  ) => inputAdapter.send({ type: 'thought-control', control, thoughtId, event });
 
   return (
     <div ref={hostRef} className={cx(thoughtSpaceClass, className)}>
@@ -371,24 +106,30 @@ export function ThoughtSpace({
             title="Edit thought"
             className={cx(actionButtonClass, directActionButtonClass)}
             style={actionStyle(selectedPosition, actionPositions.edit)}
-            onPointerDown={armAction}
-            onPointerUp={(event) => {
-              completeAction(event, () => {
-                onInputRef.current({
-                  type: 'canvas-double-click',
-                  point: selectedPosition,
-                });
-              });
-            }}
-            onPointerCancel={cancelAction}
-            onClick={(event) => {
-              activateFromKeyboard(event, () => {
-                onInputRef.current({
-                  type: 'canvas-double-click',
-                  point: selectedPosition,
-                });
-              });
-            }}
+            onPointerDown={(event) =>
+              sendControl(
+                'edit',
+                selectedThought.id,
+                pointerControlEvent('pointer-down', event),
+              )
+            }
+            onPointerUp={(event) =>
+              sendControl(
+                'edit',
+                selectedThought.id,
+                pointerControlEvent('pointer-up', event),
+              )
+            }
+            onPointerCancel={(event) =>
+              sendControl(
+                'edit',
+                selectedThought.id,
+                pointerControlEvent('pointer-cancel', event),
+              )
+            }
+            onClick={(event) =>
+              sendControl('edit', selectedThought.id, keyboardControlEvent(event))
+            }
             aria-label={`Edit thought: ${selectedThought.text}`}
           >
             <Pencil size={20} strokeWidth={1} aria-hidden="true" />
@@ -397,18 +138,30 @@ export function ThoughtSpace({
             title="Delete thought"
             className={cx(actionButtonClass, directActionButtonClass)}
             style={actionStyle(selectedPosition, actionPositions.delete)}
-            onPointerDown={armAction}
-            onPointerUp={(event) => {
-              completeAction(event, () => {
-                onInputRef.current({ type: 'delete-selection' });
-              });
-            }}
-            onPointerCancel={cancelAction}
-            onClick={(event) => {
-              activateFromKeyboard(event, () => {
-                onInputRef.current({ type: 'delete-selection' });
-              });
-            }}
+            onPointerDown={(event) =>
+              sendControl(
+                'delete',
+                selectedThought.id,
+                pointerControlEvent('pointer-down', event),
+              )
+            }
+            onPointerUp={(event) =>
+              sendControl(
+                'delete',
+                selectedThought.id,
+                pointerControlEvent('pointer-up', event),
+              )
+            }
+            onPointerCancel={(event) =>
+              sendControl(
+                'delete',
+                selectedThought.id,
+                pointerControlEvent('pointer-cancel', event),
+              )
+            }
+            onClick={(event) =>
+              sendControl('delete', selectedThought.id, keyboardControlEvent(event))
+            }
             aria-label={`Delete thought: ${selectedThought.text}`}
           >
             <X size={20} strokeWidth={1} aria-hidden="true" />
@@ -418,30 +171,27 @@ export function ThoughtSpace({
               title="Move thought independently"
               className={cx(actionButtonClass, grabActionButtonClass)}
               style={actionStyle(selectedPosition, actionPositions.grab)}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                event.currentTarget.setPointerCapture(event.pointerId);
-                const canvas = hostRef.current?.querySelector('canvas');
-                if (!canvas) return;
-                const rect = canvas.getBoundingClientRect();
-                onInputRef.current({
-                  type: 'thought-pointer-down',
-                  id: selectedThought.id,
-                  point: {
-                    x: event.clientX - rect.left,
-                    y: event.clientY - rect.top,
-                  },
-                  singular: true,
-                  detachOnTap: true,
-                });
-              }}
-              onPointerUp={(event) => {
-                if (event.pointerType !== 'mouse') {
-                  controlClickSuppressorRef.current.arm(event.timeStamp);
-                }
-              }}
-              onPointerCancel={() => controlClickSuppressorRef.current.cancel()}
+              onPointerDown={(event) =>
+                sendControl(
+                  'grab',
+                  selectedThought.id,
+                  pointerControlEvent('pointer-down', event),
+                )
+              }
+              onPointerUp={(event) =>
+                sendControl(
+                  'grab',
+                  selectedThought.id,
+                  pointerControlEvent('pointer-up', event),
+                )
+              }
+              onPointerCancel={(event) =>
+                sendControl(
+                  'grab',
+                  selectedThought.id,
+                  pointerControlEvent('pointer-cancel', event),
+                )
+              }
               aria-label={`Move thought independently: ${selectedThought.text}`}
             >
               <Grip size={20} strokeWidth={1} aria-hidden="true" />
@@ -455,11 +205,46 @@ export function ThoughtSpace({
         launchRequest={launchRequest}
         toneColor={getThoughtTone(snapshot.state.thoughts.length).css}
         onOpen={(screenPosition) => {
-          onInputRef.current({ type: 'launcher-open', point: screenPosition });
+          inputAdapter.send({
+            type: 'launcher-open',
+            point: screenPosition,
+          });
         }}
       />
     </div>
   );
+}
+
+function pointerControlEvent(
+  phase: 'pointer-down' | 'pointer-up' | 'pointer-cancel',
+  event: ReactPointerEvent<HTMLButtonElement>,
+): ThoughtControlEvent {
+  return {
+    phase,
+    pointerId: event.pointerId,
+    pointerKind: event.pointerType,
+    clientPoint: { x: event.clientX, y: event.clientY },
+    timeStamp: event.timeStamp,
+    consume: () => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    capturePointer: () => event.currentTarget.setPointerCapture(event.pointerId),
+  };
+}
+
+function keyboardControlEvent(
+  event: ReactMouseEvent<HTMLButtonElement>,
+): ThoughtControlEvent {
+  return {
+    phase: 'keyboard-activate',
+    timeStamp: event.timeStamp,
+    clickDetail: event.detail,
+    consume: () => {
+      if (event.detail === 0) event.preventDefault();
+      event.stopPropagation();
+    },
+  };
 }
 
 const thoughtSpaceClass = css({

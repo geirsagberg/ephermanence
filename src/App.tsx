@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { css } from '../styled-system/css';
 
 import {
@@ -12,10 +12,11 @@ import {
 import { SpatialThoughtComposer } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
 import { spaceForQuery } from './initialSpace';
+import { createSpatialInteraction } from './spatialInteraction';
 import {
-  createSpatialInteraction,
-  type SpatialInteractionInput,
-} from './spatialInteraction';
+  createSpatialFieldInputAdapter,
+  type SpatialFieldFrame,
+} from './spatialFieldInputAdapter';
 import type { SpaceStorage } from './spaceStorage';
 import { createThoughtAuthoring, type ThoughtAuthoringInput } from './thoughtAuthoring';
 import { getThoughtTone } from './thoughtTone';
@@ -43,50 +44,59 @@ export function App() {
   const [interaction] = useState(() => {
     return createSpatialInteraction(spaceForQuery(window.location.search), storage);
   });
-  const [interactionSnapshot, setInteractionSnapshot] = useState(interaction.read);
   const [authoring] = useState(createThoughtAuthoring);
+  const [interactionSnapshot, setInteractionSnapshot] = useState(interaction.read);
   const [authoringState, setAuthoringState] = useState(authoring.read);
+  const [launchRequest, setLaunchRequest] = useState(0);
   const [ambientBubbleSettings, setAmbientBubbleSettings] =
     useState<AmbientBubbleSettings>(() => readAmbientBubbleSettings());
-  const sendToField = useCallback(
-    (input: SpatialInteractionInput) => {
-      const transition = interaction.dispatch(input);
-      setInteractionSnapshot(transition.snapshot);
-      for (const effect of transition.effects) {
-        switch (effect.type) {
-          case 'request-create':
-            authoring.dispatch({
-              type: 'open-create',
-              screenPosition: effect.screenPosition,
-              worldPosition: effect.worldPosition,
-              tone: effect.tone,
-            });
-            break;
-          case 'request-edit':
-            authoring.dispatch({
-              type: 'open-edit',
-              thought: effect.thought,
-              screenPosition: effect.screenPosition,
-            });
-            break;
-          case 'empty-activated':
-            authoring.dispatch({ type: 'cancel' });
-            break;
-        }
-      }
-      setAuthoringState(authoring.read());
-      return transition;
-    },
-    [authoring, interaction],
+  const onFieldFrameRef = useRef<(frame: SpatialFieldFrame) => void>(() => {});
+  const [fieldInput] = useState(() =>
+    createSpatialFieldInputAdapter({
+      interaction,
+      onFrame: (frame) => onFieldFrameRef.current(frame),
+      onFailure: (error) => console.error('Spatial field failed to start', error),
+    }),
   );
+  onFieldFrameRef.current = (frame) => {
+    setInteractionSnapshot(frame.snapshot);
+    if (frame.launchRequests > 0) {
+      setLaunchRequest((request) => request + frame.launchRequests);
+    }
+    for (const effect of frame.effects) {
+      switch (effect.type) {
+        case 'request-create':
+          authoring.dispatch({
+            type: 'open-create',
+            screenPosition: effect.screenPosition,
+            worldPosition: effect.worldPosition,
+            tone: effect.tone,
+          });
+          break;
+        case 'request-edit':
+          authoring.dispatch({
+            type: 'open-edit',
+            thought: effect.thought,
+            screenPosition: effect.screenPosition,
+          });
+          break;
+        case 'empty-activated':
+          authoring.dispatch({ type: 'cancel' });
+          break;
+      }
+    }
+    setAuthoringState(authoring.read());
+  };
 
   const sendToAuthoring = useCallback(
     (input: ThoughtAuthoringInput) => {
       const commands = authoring.dispatch(input);
       setAuthoringState(authoring.read());
-      for (const command of commands) sendToField(command);
+      for (const command of commands) {
+        fieldInput.send({ type: 'authoring-command', command });
+      }
     },
-    [authoring, sendToField],
+    [authoring, fieldInput],
   );
 
   return (
@@ -97,9 +107,10 @@ export function App() {
         </header>
         <ThoughtSpace
           interaction={interaction}
+          inputAdapter={fieldInput}
           snapshot={interactionSnapshot}
-          onInput={sendToField}
           findFreePosition={authoring.findFreePosition}
+          launchRequest={launchRequest}
           ambientBubbleSettings={ambientBubbleSettings}
           composerOpen={authoringState.mode !== 'idle'}
           editingThoughtId={

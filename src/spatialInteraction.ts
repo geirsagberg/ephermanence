@@ -34,7 +34,6 @@ export type SpatialInteractionInput =
       point: Point;
       pointerId: number;
       pointerKind: PointerKind;
-      inside: boolean;
     }
   | {
       type: 'surface-pointer-up';

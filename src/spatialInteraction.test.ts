@@ -50,7 +50,6 @@ describe('spatial field interaction', () => {
       point: { x: 120, y: 90 },
       pointerId: 1,
       pointerKind: 'mouse',
-      inside: true,
     });
 
     expect(moved.snapshot.camera).toEqual({ x: 520, y: 390, zoom: 1 });
@@ -85,7 +84,6 @@ describe('spatial field interaction', () => {
       point: { x: 103, y: 100 },
       pointerId: 1,
       pointerKind: 'mouse',
-      inside: true,
     });
     expect(spatialInteraction.read().selectedId).toBe(existing.id);
 
@@ -94,7 +92,6 @@ describe('spatial field interaction', () => {
       point: { x: 105, y: 100 },
       pointerId: 1,
       pointerKind: 'mouse',
-      inside: true,
     });
 
     expect(spatialInteraction.read().selectedId).toBeNull();
@@ -121,7 +118,6 @@ describe('spatial field interaction', () => {
       point: { x: screenPoint.x + 20, y: screenPoint.y },
       pointerId: 1,
       pointerKind: 'mouse',
-      inside: true,
     });
     const released = spatialInteraction.dispatch({
       type: 'surface-pointer-up',
@@ -201,7 +197,6 @@ describe('spatial field interaction', () => {
       point: { x: 700, y: 300 },
       pointerId: 1,
       pointerKind: 'mouse',
-      inside: true,
     });
 
     expect(
@@ -273,7 +268,6 @@ describe('spatial field interaction', () => {
       point: { x: point.x + 20, y: point.y },
       pointerId: 1,
       pointerKind: 'mouse',
-      inside: true,
     });
 
     expect(memory.writes()).toBe(0);
