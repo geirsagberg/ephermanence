@@ -50,6 +50,7 @@ function createHarness(
   const render = vi.fn();
   const presentAuthoring = vi.fn();
   const destroy = vi.fn();
+  const vibrate = vi.fn();
   let onThoughtPointerDown:
     | ((
         id: string,
@@ -90,6 +91,7 @@ function createHarness(
     setDelay: (callback, delay) => setTimeout(callback, delay),
     clearDelay: (handle) => clearTimeout(handle),
     flushAuthoringSynchronously,
+    vibrate,
   };
   const onFrame = vi.fn();
   const onFailure = vi.fn();
@@ -109,6 +111,7 @@ function createHarness(
     render,
     presentAuthoring,
     destroy,
+    vibrate,
     onFrame,
     onFailure,
     thoughtPointerDown: (...args: Parameters<NonNullable<typeof onThoughtPointerDown>>) =>
@@ -456,9 +459,13 @@ describe('spatial field input adapter', () => {
     const cleanup = await mount(harness);
 
     harness.thoughtPointerDown('held', { x: 500, y: 400 }, false, 3);
-    vi.advanceTimersByTime(450);
+    vi.advanceTimersByTime(449);
+    expect(harness.vibrate).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
 
     expect(harness.interaction.read().grabbedThoughtId).toBe('held');
+    expect(harness.vibrate).toHaveBeenCalledOnce();
+    expect(harness.vibrate.mock.calls[0]?.[0]).toBeGreaterThan(0);
     cleanup();
   });
 
