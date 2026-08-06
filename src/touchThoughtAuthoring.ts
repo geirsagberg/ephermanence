@@ -18,6 +18,15 @@ export function isIOSDevice(navigatorObject: NavigatorIdentity) {
   );
 }
 
+export function shouldPreserveNativeLongPressHaptics(
+  navigatorObject: Pick<Navigator, 'userAgent'>,
+) {
+  return (
+    /Android/.test(navigatorObject.userAgent) &&
+    /Firefox\//.test(navigatorObject.userAgent)
+  );
+}
+
 export function shouldOpenThoughtImmediately(pointerKind: string, ios: boolean) {
   return ios && (pointerKind === 'touch' || pointerKind === 'pen');
 }

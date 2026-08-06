@@ -69,7 +69,6 @@ export type SpatialFieldInputRuntime = {
   cancelFrame: (handle: number) => void;
   setDelay: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   clearDelay: (handle: ReturnType<typeof setTimeout>) => void;
-  vibrate: (duration: number) => void;
   flushAuthoringSynchronously: boolean;
 };
 
@@ -99,7 +98,6 @@ const actionMovementThreshold = 7;
 const gestureMovementThreshold = 4;
 const longPressMovementThreshold = 4;
 const longPressDelay = 450;
-const longPressHapticDuration = 10;
 const controlClickWindow = 750;
 
 export function createSpatialFieldInputAdapter({
@@ -295,7 +293,6 @@ export function createSpatialFieldInputAdapter({
           point: pending.lastPoint,
           singular: true,
         });
-        runtime.vibrate(longPressHapticDuration);
       }, longPressDelay),
     };
   };
@@ -582,7 +579,6 @@ function browserRuntime(): SpatialFieldInputRuntime {
     cancelFrame: (handle) => window.cancelAnimationFrame(handle),
     setDelay: (callback, delay) => window.setTimeout(callback, delay),
     clearDelay: (handle) => window.clearTimeout(handle),
-    vibrate: (duration) => navigator.vibrate?.(duration),
     flushAuthoringSynchronously: isIOSDevice(navigator),
   };
 }

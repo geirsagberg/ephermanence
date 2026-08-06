@@ -4,6 +4,7 @@ import {
   composerPositionForKeyboard,
   isIOSDevice,
   shouldOpenThoughtImmediately,
+  shouldPreserveNativeLongPressHaptics,
 } from './touchThoughtAuthoring';
 
 describe('touch thought authoring', () => {
@@ -34,6 +35,24 @@ describe('touch thought authoring', () => {
         userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel Tablet)',
         platform: 'Linux armv8l',
         maxTouchPoints: 5,
+      }),
+    ).toBe(false);
+  });
+
+  it('preserves native long-press haptics only on Firefox for Android', () => {
+    expect(
+      shouldPreserveNativeLongPressHaptics({
+        userAgent: 'Mozilla/5.0 (Android 15; Mobile; rv:142.0) Gecko/142.0 Firefox/142.0',
+      }),
+    ).toBe(true);
+    expect(
+      shouldPreserveNativeLongPressHaptics({
+        userAgent: 'Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/140.0',
+      }),
+    ).toBe(false);
+    expect(
+      shouldPreserveNativeLongPressHaptics({
+        userAgent: 'Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 FxiOS/142.0',
       }),
     ).toBe(false);
   });

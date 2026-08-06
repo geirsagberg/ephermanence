@@ -27,6 +27,7 @@ import {
   THOUGHT_ACTION_SIZE,
 } from '../thoughtActions';
 import { thoughtRadius } from '../thoughtTextLayout';
+import { shouldPreserveNativeLongPressHaptics } from '../touchThoughtAuthoring';
 import { ThoughtLauncher } from './ThoughtLauncher';
 
 type ThoughtSpaceProps = {
@@ -106,6 +107,9 @@ export function ThoughtSpace({
       ref={hostRef}
       className={cx(thoughtSpaceClass, className)}
       data-authoring={composerOpen || undefined}
+      data-native-long-press-haptics={
+        shouldPreserveNativeLongPressHaptics(navigator) || undefined
+      }
     >
       {!composerOpen && selectedThought && selectedPosition && actionPositions && (
         <Fragment key={selectedThought.id}>
@@ -271,6 +275,12 @@ const thoughtSpaceClass = css({
   },
   '&[data-authoring] canvas': {
     pointerEvents: 'none',
+  },
+  '&[data-native-long-press-haptics]': {
+    userSelect: 'auto',
+    '& canvas': {
+      userSelect: 'auto',
+    },
   },
 });
 
