@@ -63,7 +63,7 @@ type ThoughtShadowFilterFactory = (elevation: number) => DropShadowFilter;
 type ActiveBond = { graphic: Graphics; geometry: BondGeometry };
 type ThoughtBubbleRecord = {
   bubble: Container;
-  cachedVisual: Container;
+  visual: Container;
   body: Graphics;
   label: Text;
   shadowFilter?: DropShadowFilter;
@@ -82,7 +82,6 @@ const thoughtAppearanceDuration = 80;
 const thoughtAppearanceStartAlpha = 0.7;
 const thoughtElevationDuration = 220;
 const thoughtRise = 2;
-const maxThoughtShadowPadding = 46;
 const thoughtAuthoringOpenDuration = 240;
 const thoughtAuthoringCloseDuration = 200;
 const thoughtAuthoringDismissDuration = 180;
@@ -489,11 +488,9 @@ export class SpatialFieldScene extends Container {
               ),
         ),
       );
-      record.cachedVisual.y =
-        record.elevation === 0 ? 0 : -thoughtRise * record.elevation;
+      record.visual.y = record.elevation === 0 ? 0 : -thoughtRise * record.elevation;
       if (record.shadowFilter) {
         applyThoughtElevation(record.shadowFilter, record.elevation);
-        record.cachedVisual.updateCacheTexture();
       }
     }
   }
@@ -502,7 +499,6 @@ export class SpatialFieldScene extends Container {
     for (const record of this.thoughtBubbles.values()) {
       drawThoughtBody(record.body, record.radius, record.tone, this.colorModeProgress);
       applyThoughtLabelColor(record.label, this.colorModeProgress);
-      record.cachedVisual.updateCacheTexture();
     }
     if (this.authoringVisual) {
       drawThoughtBody(
@@ -707,18 +703,10 @@ function createThoughtBubble(
   }
 
   const label = createThoughtLabel(thought.text, radius, colorModeProgress);
-  const cachedVisual = new Container();
-  cachedVisual.y = -thoughtRise * elevation;
-  if (shadowFilter) {
-    const extent = radius + maxThoughtShadowPadding;
-    const cachePadding = new Graphics()
-      .rect(-extent, -extent, extent * 2, extent * 2)
-      .fill({ color: 0, alpha: 0 });
-    cachedVisual.addChild(cachePadding);
-  }
-  cachedVisual.addChild(body, label);
-  cachedVisual.cacheAsTexture({ antialias: true });
-  bubble.addChild(cachedVisual);
+  const visual = new Container();
+  visual.y = -thoughtRise * elevation;
+  visual.addChild(body, label);
+  bubble.addChild(visual);
   bubble.on('pointerdown', (event: FederatedPointerEvent) => {
     onPointerDown(
       thought.id,
@@ -728,7 +716,7 @@ function createThoughtBubble(
     );
     bubble.cursor = 'grabbing';
   });
-  return { bubble, cachedVisual, body, label, shadowFilter };
+  return { bubble, visual, body, label, shadowFilter };
 }
 
 function createThoughtLabel(text: string, radius: number, colorModeProgress = 0) {

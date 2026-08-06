@@ -354,26 +354,26 @@ describe('spatial field scene', () => {
     );
   });
 
-  it('reserves texture space for the full filtered Thought shadow', () => {
-    const scene = new SpatialFieldScene(undefined, () => ({ padding: 34 }) as never);
+  it('keeps Thought visuals vector-rendered while the camera zooms', () => {
+    const scene = new SpatialFieldScene();
     const thought = {
-      id: 'shadowed',
-      text: 'Shadowed',
+      id: 'sharp',
+      text: 'Sharp',
       x: 0,
       y: 0,
       tone: 0,
     };
-    scene.render(snapshot({ thoughts: [thought], attachments: [] }), viewport);
 
-    const cachedVisual = thoughts(scene).children[0].children[0] as Container;
-    const cachePadding = cachedVisual.children[0] as Graphics;
-    const radius = thoughtRadius(thought.text);
+    scene.render(
+      {
+        ...snapshot({ thoughts: [thought], attachments: [] }),
+        camera: { x: 0, y: 0, zoom: 3 },
+      },
+      viewport,
+    );
 
-    expect(cachedVisual.children).toHaveLength(3);
-    expect(cachePadding.bounds.minX).toBeLessThanOrEqual(-radius - 34);
-    expect(cachePadding.bounds.maxX).toBeGreaterThanOrEqual(radius + 34);
-    expect(cachePadding.bounds.minY).toBeLessThanOrEqual(-radius - 34);
-    expect(cachePadding.bounds.maxY).toBeGreaterThanOrEqual(radius + 34);
+    const visual = thoughts(scene).children[0].children[0] as Container;
+    expect(visual.isCachedAsTexture).toBe(false);
   });
 
   it('raises a Thought as its final Bond is removed', () => {
