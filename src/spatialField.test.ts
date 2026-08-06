@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createSpatialField, type Point } from './spatialField';
+import { createSpatialField, thoughtRadius, type Point } from './spatialField';
 import type { Attachment, SpaceState, Thought } from './types';
 
 function thought(id: string, x: number, radius = 50): Thought {
@@ -269,5 +269,10 @@ describe('spatial field transitions', () => {
       tone: 3,
     });
     expect(created.radius).toBeGreaterThan(0);
+  });
+
+  it('gives long thoughts more room without changing medium thought sizing', () => {
+    expect(thoughtRadius('x'.repeat(80))).toBe(88);
+    expect(thoughtRadius('x'.repeat(220))).toBe(152);
   });
 });
