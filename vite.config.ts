@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react';
-import { defineConfig } from 'vite-plus';
 import { VitePWA } from 'vite-plugin-pwa';
+import { defineConfig } from 'vite-plus';
 
 export default defineConfig({
   plugins: [
@@ -10,7 +10,7 @@ export default defineConfig({
       manifest: {
         name: 'Ephermanence',
         short_name: 'Ephermanence',
-        description: 'A calm workbench for unfinished thoughts.',
+        description: 'A space for thoughts to linger, alone or together.',
         id: '/',
         start_url: '/',
         scope: '/',
