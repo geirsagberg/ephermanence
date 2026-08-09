@@ -801,6 +801,7 @@ function createThoughtShadowFilter(elevation: number) {
     blur: 8,
     quality: 3,
   });
+  filter.antialias = 'on';
   applyThoughtElevation(filter, elevation);
   return filter;
 }
