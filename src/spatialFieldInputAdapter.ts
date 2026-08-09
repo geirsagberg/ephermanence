@@ -223,6 +223,8 @@ export function createSpatialFieldInputAdapter({
           point: pointInCanvas(event.clientPoint),
           singular: true,
           detachOnTap: true,
+          pointerId: event.pointerId,
+          pointerKind: event.pointerKind ?? '',
         });
       } else {
         activation = { pointerId: event.pointerId, start: event.clientPoint };

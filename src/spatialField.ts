@@ -8,19 +8,13 @@ export type SpatialFieldInput =
       type: 'thought-pointer-down';
       id: string;
       point: Point;
+      pointerId: number;
       singular: boolean;
       detachOnTap?: boolean;
     }
-  | { type: 'pointer-move'; point: Point; zoom: number }
-  | { type: 'pointer-up' }
-  | {
-      type: 'two-pointer-drag-start';
-      pointers: { pointerId: number; point: Point; movingIds: string[] }[];
-      pulledId: string;
-      pulledPointerId: number;
-    }
-  | { type: 'two-pointer-drag-move'; pointerId: number; point: Point; zoom: number }
-  | { type: 'two-pointer-drag-end'; pointerId: number }
+  | { type: 'pointer-move'; pointerId: number; point: Point; zoom: number }
+  | { type: 'pointer-up'; pointerId: number }
+  | { type: 'pointer-cancel'; pointerId: number }
   | { type: 'clear-selection' }
   | { type: 'delete-selection' }
   | { type: 'edit-thought'; id: string; text: string }
@@ -30,27 +24,21 @@ export type SpatialFieldInput =
 export type SpatialFieldSnapshot = {
   state: SpaceState;
   selectedId: string | null;
-  grabbedThoughtId: string | null;
+  independentlyMovingThoughtIds: string[];
   attachmentCandidateIds: string[];
   isDragging: boolean;
 };
 
 type Drag = {
+  order: number;
   activeId: string;
   distance: number;
   started: boolean;
   lastPoint: Point;
   movingIds: Set<string>;
-  singular: boolean;
+  independent: boolean;
   detachOnTap: boolean;
-};
-
-type TwoPointerDrag = {
-  pointers: Map<number, { lastPoint: Point; movingIds: Set<string> }>;
-  pulledId: string;
-  pulledPointerId: number;
-  distance: number;
-  started: boolean;
+  raiseOnDragStart: boolean;
 };
 
 export type SpatialField = {
@@ -62,12 +50,12 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
   let state = initialState;
   let selectedId: string | null = null;
   let attachmentCandidateIds: string[] = [];
-  let drag: Drag | null = null;
-  let twoPointerDrag: TwoPointerDrag | null = null;
+  const drags = new Map<number, Drag>();
+  let nextDragOrder = 0;
   let snapshot: SpatialFieldSnapshot = {
     state,
     selectedId,
-    grabbedThoughtId: null,
+    independentlyMovingThoughtIds: [],
     attachmentCandidateIds,
     isDragging: false,
   };
@@ -79,28 +67,44 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
     dispatch(input) {
       switch (input.type) {
         case 'thought-pointer-down': {
-          twoPointerDrag = null;
-          attachmentCandidateIds = [];
+          drags.delete(input.pointerId);
+          const previousOwner = findDragOwningThought(drags, input.id);
+          const independent = input.singular || Boolean(previousOwner);
+          if (previousOwner) previousOwner.movingIds.delete(input.id);
           if (input.singular) {
             state = {
               ...state,
               thoughts: bringThoughtToFront(state.thoughts, input.id),
             };
           }
-          drag = {
+          const ownedIds = new Set(
+            [...drags.values()].flatMap(({ movingIds }) => [...movingIds]),
+          );
+          drags.set(input.pointerId, {
+            order: nextDragOrder,
             activeId: input.id,
             distance: 0,
             started: false,
             lastPoint: input.point,
-            movingIds: input.singular
+            movingIds: independent
               ? new Set([input.id])
-              : connectedThoughtIds(input.id, state.attachments),
-            singular: input.singular,
+              : new Set(
+                  [...connectedThoughtIds(input.id, state.attachments)].filter(
+                    (id) => !ownedIds.has(id),
+                  ),
+                ),
+            independent,
             detachOnTap: input.detachOnTap ?? false,
-          };
+            raiseOnDragStart: !state.attachments.some(
+              ([a, b]) => a === input.id || b === input.id,
+            ),
+          });
+          nextDragOrder += 1;
+          attachmentCandidateIds = dragAttachmentCandidateIds(state, drags);
           break;
         }
         case 'pointer-move': {
+          const drag = drags.get(input.pointerId);
           if (!drag) break;
           const dx = input.point.x - drag.lastPoint.x;
           const dy = input.point.y - drag.lastPoint.y;
@@ -113,29 +117,19 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
           drag.lastPoint = input.point;
 
           const thoughts = translateThoughts(
-            dragBegan
-              ? bringThoughtToFrontWhenAlone(
-                  state.thoughts,
-                  state.attachments,
-                  drag.activeId,
-                )
+            dragBegan && drag.raiseOnDragStart
+              ? bringThoughtToFront(state.thoughts, drag.activeId)
               : state.thoughts,
             drag.movingIds,
             dx / input.zoom,
             dy / input.zoom,
           );
           state = { ...state, thoughts };
-          attachmentCandidateIds = drag.started
-            ? findAttachmentCandidateIds(
-                thoughts,
-                state.attachments,
-                drag.movingIds,
-                drag.singular,
-              )
-            : [];
+          attachmentCandidateIds = dragAttachmentCandidateIds(state, drags);
           break;
         }
         case 'pointer-up': {
+          const drag = drags.get(input.pointerId);
           if (!drag) break;
           if (drag.distance < 4) {
             if (drag.detachOnTap) {
@@ -160,80 +154,17 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
                 state.thoughts,
                 state.attachments,
                 drag.movingIds,
-                drag.singular,
               ),
             };
           }
-          drag = null;
-          attachmentCandidateIds = [];
+          drags.delete(input.pointerId);
+          transferReleasedDragToOldestAttachedDrag(drag, drags, state.attachments);
+          attachmentCandidateIds = dragAttachmentCandidateIds(state, drags);
           break;
         }
-        case 'two-pointer-drag-start': {
-          drag = null;
-          attachmentCandidateIds = [];
-          selectedId = null;
-          twoPointerDrag = {
-            pointers: new Map(
-              input.pointers.map(({ pointerId, point, movingIds }) => [
-                pointerId,
-                { lastPoint: point, movingIds: new Set(movingIds) },
-              ]),
-            ),
-            pulledId: input.pulledId,
-            pulledPointerId: input.pulledPointerId,
-            distance: 0,
-            started: false,
-          };
-          break;
-        }
-        case 'two-pointer-drag-move': {
-          const activePointer = twoPointerDrag?.pointers.get(input.pointerId);
-          if (!twoPointerDrag || !activePointer) break;
-          const dx = input.point.x - activePointer.lastPoint.x;
-          const dy = input.point.y - activePointer.lastPoint.y;
-          activePointer.lastPoint = input.point;
-          twoPointerDrag.distance += Math.hypot(dx, dy);
-          if (!twoPointerDrag.started && twoPointerDrag.distance >= 4) {
-            twoPointerDrag.started = true;
-          }
-          state = {
-            ...state,
-            thoughts: translateThoughts(
-              state.thoughts,
-              activePointer.movingIds,
-              dx / input.zoom,
-              dy / input.zoom,
-            ),
-          };
-          attachmentCandidateIds = twoPointerDrag.started
-            ? findAttachmentCandidateIds(
-                state.thoughts,
-                state.attachments,
-                new Set([twoPointerDrag.pulledId]),
-                true,
-              )
-            : [];
-          break;
-        }
-        case 'two-pointer-drag-end': {
-          if (!twoPointerDrag) break;
-          const releasedPointer = twoPointerDrag.pointers.get(input.pointerId);
-          twoPointerDrag.pointers.delete(input.pointerId);
-          if (twoPointerDrag.started && releasedPointer) {
-            state = {
-              ...state,
-              attachments: recalculateAttachments(
-                state.thoughts,
-                state.attachments,
-                releasedPointer.movingIds,
-                input.pointerId === twoPointerDrag.pulledPointerId,
-              ),
-            };
-            attachmentCandidateIds = [];
-          }
-          if (twoPointerDrag.pointers.size > 0) break;
-          twoPointerDrag = null;
-          attachmentCandidateIds = [];
+        case 'pointer-cancel': {
+          drags.delete(input.pointerId);
+          attachmentCandidateIds = dragAttachmentCandidateIds(state, drags);
           break;
         }
         case 'clear-selection': {
@@ -262,7 +193,6 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
               thoughts,
               state.attachments,
               new Set([input.id]),
-              true,
             ),
           };
           break;
@@ -287,25 +217,27 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
           state = input.state;
           selectedId = null;
           attachmentCandidateIds = [];
-          drag = null;
-          twoPointerDrag = null;
+          drags.clear();
           break;
         }
       }
 
+      const independentlyMovingThoughtIds = [...drags.values()]
+        .filter(({ independent }) => independent)
+        .map(({ activeId }) => activeId);
       if (
         state !== snapshot.state ||
         selectedId !== snapshot.selectedId ||
-        (drag?.singular ? drag.activeId : null) !== snapshot.grabbedThoughtId ||
+        !sameIds(independentlyMovingThoughtIds, snapshot.independentlyMovingThoughtIds) ||
         attachmentCandidateIds !== snapshot.attachmentCandidateIds ||
-        Boolean(drag?.started || twoPointerDrag?.started) !== snapshot.isDragging
+        [...drags.values()].some(({ started }) => started) !== snapshot.isDragging
       ) {
         snapshot = {
           state,
           selectedId,
-          grabbedThoughtId: drag?.singular ? drag.activeId : null,
+          independentlyMovingThoughtIds,
           attachmentCandidateIds,
-          isDragging: Boolean(drag?.started || twoPointerDrag?.started),
+          isDragging: [...drags.values()].some(({ started }) => started),
         };
       }
       return snapshot;
@@ -317,15 +249,6 @@ function bringThoughtToFront(thoughts: Thought[], id: string) {
   const selected = thoughts.find((thought) => thought.id === id);
   if (!selected || thoughts.at(-1)?.id === id) return thoughts;
   return [...thoughts.filter((thought) => thought.id !== id), selected];
-}
-
-function bringThoughtToFrontWhenAlone(
-  thoughts: Thought[],
-  attachments: Attachment[],
-  id: string,
-) {
-  const attached = attachments.some(([a, b]) => a === id || b === id);
-  return attached ? thoughts : bringThoughtToFront(thoughts, id);
 }
 
 export function connectedThoughtIds(id: string, attachments: Attachment[]) {
@@ -360,6 +283,44 @@ function translateThoughts(
   );
 }
 
+function findDragOwningThought(drags: Map<number, Drag>, id: string) {
+  return [...drags.values()].find(({ movingIds }) => movingIds.has(id));
+}
+
+function sameIds(left: string[], right: string[]) {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+function dragAttachmentCandidateIds(state: SpaceState, drags: Map<number, Drag>) {
+  return [
+    ...new Set(
+      [...drags.values()]
+        .filter(({ started }) => started)
+        .flatMap(({ movingIds }) =>
+          findAttachmentCandidateIds(state.thoughts, state.attachments, movingIds),
+        ),
+    ),
+  ];
+}
+
+function transferReleasedDragToOldestAttachedDrag(
+  released: Drag,
+  drags: Map<number, Drag>,
+  attachments: Attachment[],
+) {
+  const recipient = [...drags.values()]
+    .filter(({ movingIds }) =>
+      attachments.some(
+        ([a, b]) =>
+          (released.movingIds.has(a) && movingIds.has(b)) ||
+          (released.movingIds.has(b) && movingIds.has(a)),
+      ),
+    )
+    .sort((left, right) => left.order - right.order)[0];
+  if (!recipient) return;
+  for (const id of released.movingIds) recipient.movingIds.add(id);
+}
+
 function attachmentKey([a, b]: Attachment) {
   return a < b ? `${a}:${b}` : `${b}:${a}`;
 }
@@ -372,21 +333,14 @@ function findAttachmentCandidateIds(
   thoughts: Thought[],
   attachments: Attachment[],
   movedIds: Set<string>,
-  singular: boolean,
 ) {
-  const retained = retainAttachments(attachments, movedIds, singular);
+  const retained = retainAttachments(attachments, movedIds);
   const additions = findNewAttachments(thoughts, retained, movedIds);
   return [...new Set(additions.map(([, targetId]) => targetId))];
 }
 
-function retainAttachments(
-  attachments: Attachment[],
-  movedIds: Set<string>,
-  singular: boolean,
-) {
-  return singular
-    ? attachments.filter(([a, b]) => !movedIds.has(a) && !movedIds.has(b))
-    : [...attachments];
+function retainAttachments(attachments: Attachment[], movedIds: Set<string>) {
+  return attachments.filter(([a, b]) => movedIds.has(a) === movedIds.has(b));
 }
 
 function findNewAttachments(
@@ -424,8 +378,7 @@ function recalculateAttachments(
   thoughts: Thought[],
   attachments: Attachment[],
   movedIds: Set<string>,
-  singular: boolean,
 ) {
-  const retained = retainAttachments(attachments, movedIds, singular);
+  const retained = retainAttachments(attachments, movedIds);
   return [...retained, ...findNewAttachments(thoughts, retained, movedIds)];
 }

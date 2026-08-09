@@ -264,8 +264,13 @@ export class SpatialFieldScene extends Container {
     } else {
       this.colorModeTarget = nextColorModeTarget;
     }
-    const { camera, state, selectedId, grabbedThoughtId, attachmentCandidateIds } =
-      snapshot;
+    const {
+      camera,
+      state,
+      selectedId,
+      independentlyMovingThoughtIds,
+      attachmentCandidateIds,
+    } = snapshot;
     this.ambient.position.set(camera.x, camera.y);
     this.ambient.scale.set(camera.zoom);
     this.bondFades.position.set(camera.x, camera.y);
@@ -282,6 +287,7 @@ export class SpatialFieldScene extends Container {
 
     const positions = new Map(state.thoughts.map((thought) => [thought.id, thought]));
     const bondedThoughtIds = new Set(state.attachments.flat());
+    const independentlyMovingThoughts = new Set(independentlyMovingThoughtIds);
     const nextBondKeys = new Set<string>();
     for (const [a, b] of state.attachments) {
       const from = positions.get(a);
@@ -323,7 +329,9 @@ export class SpatialFieldScene extends Container {
       const radius = radii.get(thought.id)!;
       nextThoughtIds.add(thought.id);
       const targetElevation =
-        !bondedThoughtIds.has(thought.id) || grabbedThoughtId === thought.id ? 1 : 0;
+        !bondedThoughtIds.has(thought.id) || independentlyMovingThoughts.has(thought.id)
+          ? 1
+          : 0;
       let record = this.thoughtBubbles.get(thought.id);
       if (!record || !sameThoughtVisual(record, thought, radius)) {
         record?.bubble.destroy({ children: true });

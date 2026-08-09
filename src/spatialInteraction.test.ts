@@ -65,6 +65,8 @@ describe('spatial field interaction', () => {
       id: existing.id,
       point: thoughtPoint,
       singular: false,
+      pointerId: 1,
+      pointerKind: 'mouse',
     });
     spatialInteraction.dispatch({
       type: 'surface-pointer-up',
@@ -112,6 +114,8 @@ describe('spatial field interaction', () => {
       id: 'moving',
       point: screenPoint,
       singular: false,
+      pointerId: 1,
+      pointerKind: 'mouse',
     });
     spatialInteraction.dispatch({
       type: 'surface-pointer-move',
@@ -137,6 +141,8 @@ describe('spatial field interaction', () => {
       id: 'moving',
       point,
       singular: false,
+      pointerId: 1,
+      pointerKind: 'touch',
     });
     spatialInteraction.dispatch({
       type: 'canvas-pointer-down',
@@ -435,6 +441,222 @@ describe('spatial field interaction', () => {
     expect(spatialInteraction.read().camera.zoom).toBe(1);
   });
 
+  it('moves three unconnected touched Thoughts independently', () => {
+    const first = thought('first', -200, 0);
+    const second = thought('second', 0, 0);
+    const third = thought('third', 200, 0);
+    const spatialInteraction = interaction([first, second, third]);
+    const touches = [first, second, third].map((existing, index) => ({
+      pointerId: index + 1,
+      existing,
+      point: spatialInteraction.worldToScreen(existing),
+    }));
+
+    for (const { pointerId, existing, point } of touches) {
+      spatialInteraction.dispatch({
+        type: 'thought-pointer-down',
+        id: existing.id,
+        point,
+        singular: false,
+        pointerId,
+        pointerKind: 'touch',
+      });
+      spatialInteraction.dispatch({
+        type: 'canvas-pointer-down',
+        point,
+        pointerId,
+        pointerKind: 'touch',
+      });
+    }
+    for (const { pointerId, point } of touches) {
+      spatialInteraction.dispatch({
+        type: 'surface-pointer-move',
+        point: { x: point.x + pointerId * 10, y: point.y },
+        pointerId,
+        pointerKind: 'touch',
+      });
+    }
+
+    expect(spatialInteraction.read().state.thoughts).toEqual([
+      { ...first, x: -190 },
+      { ...second, x: 20 },
+      { ...third, x: 230 },
+    ]);
+  });
+
+  it('exposes every Thought split into an independent touch session', () => {
+    const first = thought('first', -100, 0);
+    const second = thought('second', 0, 0);
+    const third = thought('third', 100, 0);
+    const spatialInteraction = createSpatialInteraction({
+      thoughts: [first, second, third],
+      attachments: [
+        ['first', 'second'],
+        ['second', 'third'],
+      ],
+    });
+    spatialInteraction.dispatch({
+      type: 'viewport-resize',
+      size: { width: 1000, height: 800 },
+    });
+
+    for (const [pointerId, existing] of [
+      [1, first],
+      [2, second],
+      [3, third],
+    ] as const) {
+      const point = spatialInteraction.worldToScreen(existing);
+      spatialInteraction.dispatch({
+        type: 'thought-pointer-down',
+        id: existing.id,
+        point,
+        singular: false,
+        pointerId,
+        pointerKind: 'touch',
+      });
+      spatialInteraction.dispatch({
+        type: 'canvas-pointer-down',
+        point,
+        pointerId,
+        pointerKind: 'touch',
+      });
+    }
+
+    expect(spatialInteraction.read().independentlyMovingThoughtIds).toEqual([
+      'second',
+      'third',
+    ]);
+  });
+
+  it('moves a released cluster with the active cluster it joins', () => {
+    const releasedThought = thought('released', -200, 0);
+    const heldThought = thought('held', 200, 0);
+    const spatialInteraction = interaction([releasedThought, heldThought]);
+    const releasedPoint = spatialInteraction.worldToScreen(releasedThought);
+    const heldPoint = spatialInteraction.worldToScreen(heldThought);
+
+    for (const [pointerId, existing, point] of [
+      [1, releasedThought, releasedPoint],
+      [2, heldThought, heldPoint],
+    ] as const) {
+      spatialInteraction.dispatch({
+        type: 'thought-pointer-down',
+        id: existing.id,
+        point,
+        singular: false,
+        pointerId,
+        pointerKind: 'touch',
+      });
+      spatialInteraction.dispatch({
+        type: 'canvas-pointer-down',
+        point,
+        pointerId,
+        pointerKind: 'touch',
+      });
+    }
+    const touching = spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: releasedPoint.x + 400, y: releasedPoint.y },
+      pointerId: 1,
+      pointerKind: 'touch',
+    });
+    expect(touching.snapshot.attachmentCandidateIds).toEqual(['held']);
+    expect(touching.snapshot.state.attachments).toEqual([]);
+
+    const attached = spatialInteraction.dispatch({
+      type: 'surface-pointer-up',
+      pointerId: 1,
+      pointerKind: 'touch',
+    });
+    expect(attached.snapshot.state.attachments).toEqual([['released', 'held']]);
+
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: heldPoint.x + 50, y: heldPoint.y },
+      pointerId: 2,
+      pointerKind: 'touch',
+    });
+    expect(spatialInteraction.read().state.thoughts).toEqual([
+      { ...releasedThought, x: 250 },
+      { ...heldThought, x: 250 },
+    ]);
+  });
+
+  it('gathers one cluster while an unrelated Thought remains held', () => {
+    const held = thought('held', -400, 0);
+    const gathering = thought('gathering', 0, 0);
+    const target = thought('target', 300, 0);
+    const spatialInteraction = interaction([held, gathering, target]);
+    const heldPoint = spatialInteraction.worldToScreen(held);
+    const gatheringPoint = spatialInteraction.worldToScreen(gathering);
+
+    spatialInteraction.dispatch({
+      type: 'thought-pointer-down',
+      id: held.id,
+      point: heldPoint,
+      singular: false,
+      pointerId: 1,
+      pointerKind: 'touch',
+    });
+    spatialInteraction.dispatch({
+      type: 'canvas-pointer-down',
+      point: heldPoint,
+      pointerId: 1,
+      pointerKind: 'touch',
+    });
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: heldPoint.x + 20, y: heldPoint.y },
+      pointerId: 1,
+      pointerKind: 'touch',
+    });
+
+    spatialInteraction.dispatch({
+      type: 'thought-pointer-down',
+      id: gathering.id,
+      point: gatheringPoint,
+      singular: false,
+      pointerId: 2,
+      pointerKind: 'touch',
+    });
+    spatialInteraction.dispatch({
+      type: 'canvas-pointer-down',
+      point: gatheringPoint,
+      pointerId: 2,
+      pointerKind: 'touch',
+    });
+    const preview = spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: gatheringPoint.x + 300, y: gatheringPoint.y },
+      pointerId: 2,
+      pointerKind: 'touch',
+    });
+    expect(preview.snapshot.attachmentCandidateIds).toEqual(['target']);
+    expect(preview.snapshot.state.attachments).toEqual([]);
+
+    const gathered = spatialInteraction.dispatch({
+      type: 'surface-pointer-up',
+      pointerId: 2,
+      pointerKind: 'touch',
+    });
+    expect(gathered.snapshot.state.attachments).toEqual([['gathering', 'target']]);
+    expect(gathered.snapshot.isDragging).toBe(true);
+
+    spatialInteraction.dispatch({
+      type: 'surface-pointer-move',
+      point: { x: heldPoint.x + 40, y: heldPoint.y },
+      pointerId: 1,
+      pointerKind: 'touch',
+    });
+    expect(
+      Object.fromEntries(
+        spatialInteraction
+          .read()
+          .state.thoughts.map((existing) => [existing.id, existing.x]),
+      ),
+    ).toEqual({ held: -360, gathering: 300, target: 300 });
+  });
+
   it('still pinches when only one of the two touches starts on a Thought', () => {
     const existing = thought('held', 0, 0);
     const spatialInteraction = interaction([existing]);
@@ -598,6 +820,8 @@ describe('spatial field interaction', () => {
       id: existing.id,
       point,
       singular: false,
+      pointerId: 1,
+      pointerKind: 'mouse',
     });
     spatialInteraction.dispatch({
       type: 'surface-pointer-move',

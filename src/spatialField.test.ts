@@ -17,7 +17,13 @@ function startDrag(
   point: Point = { x: 0, y: 0 },
   singular = false,
 ) {
-  spatialField.dispatch({ type: 'thought-pointer-down', id, point, singular });
+  spatialField.dispatch({
+    type: 'thought-pointer-down',
+    id,
+    point,
+    pointerId: 1,
+    singular,
+  });
 }
 
 describe('spatial field transitions', () => {
@@ -29,7 +35,7 @@ describe('spatial field transitions', () => {
     ]);
 
     startDrag(spatialField, 'selected');
-    const snapshot = spatialField.dispatch({ type: 'pointer-up' });
+    const snapshot = spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
     expect(snapshot.selectedId).toBe('selected');
     expect(snapshot.state.thoughts.map(({ id }) => id)).toEqual([
@@ -80,10 +86,11 @@ describe('spatial field transitions', () => {
     startDrag(spatialField, 'moving', { x: 10, y: 20 });
     spatialField.dispatch({
       type: 'pointer-move',
+      pointerId: 1,
       point: { x: 30, y: 20 },
       zoom: 2,
     });
-    const snapshot = spatialField.dispatch({ type: 'pointer-up' });
+    const snapshot = spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
     expect(snapshot.state.thoughts).toEqual([
       thought('moving', 110),
@@ -99,10 +106,11 @@ describe('spatial field transitions', () => {
     startDrag(spatialField, 'moving');
     spatialField.dispatch({
       type: 'pointer-move',
+      pointerId: 1,
       point: { x: 4, y: 0 },
       zoom: 1,
     });
-    const snapshot = spatialField.dispatch({ type: 'pointer-up' });
+    const snapshot = spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
     expect(snapshot.state.thoughts.map(({ id }) => id)).toEqual(['front', 'moving']);
   });
@@ -119,11 +127,12 @@ describe('spatial field transitions', () => {
     startDrag(spatialField, 'moving', { x: 0, y: 0 }, true);
     const moving = spatialField.dispatch({
       type: 'pointer-move',
+      pointerId: 1,
       point: { x: 5, y: 0 },
       zoom: 1,
     });
     expect(moving.attachmentCandidateIds).toEqual(['new']);
-    const snapshot = spatialField.dispatch({ type: 'pointer-up' });
+    const snapshot = spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
     expect(snapshot.state.thoughts).toEqual([
       thought('old', 100),
@@ -145,12 +154,12 @@ describe('spatial field transitions', () => {
 
     startDrag(spatialField, 'grabbed', { x: 0, y: 0 }, true);
 
-    expect(spatialField.read().grabbedThoughtId).toBe('grabbed');
+    expect(spatialField.read().independentlyMovingThoughtIds).toEqual(['grabbed']);
     expect(spatialField.read().isDragging).toBe(false);
 
-    spatialField.dispatch({ type: 'pointer-up' });
+    spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
-    expect(spatialField.read().grabbedThoughtId).toBeNull();
+    expect(spatialField.read().independentlyMovingThoughtIds).toEqual([]);
   });
 
   it('immediately detaches a selected thought when its grab control is tapped', () => {
@@ -162,16 +171,17 @@ describe('spatial field transitions', () => {
       ],
     );
     startDrag(spatialField, 'selected');
-    spatialField.dispatch({ type: 'pointer-up' });
+    spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
     spatialField.dispatch({
       type: 'thought-pointer-down',
       id: 'selected',
       point: { x: 0, y: 0 },
+      pointerId: 1,
       singular: true,
       detachOnTap: true,
     });
-    const snapshot = spatialField.dispatch({ type: 'pointer-up' });
+    const snapshot = spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
     expect(snapshot.selectedId).toBe('selected');
     expect(snapshot.state.attachments).toEqual([['joined', 'other']]);
@@ -183,6 +193,7 @@ describe('spatial field transitions', () => {
     startDrag(spatialField, 'moving');
     const moving = spatialField.dispatch({
       type: 'pointer-move',
+      pointerId: 1,
       point: { x: 50, y: 0 },
       zoom: 1,
     });
@@ -191,7 +202,7 @@ describe('spatial field transitions', () => {
     expect(moving.isDragging).toBe(true);
     expect(moving.state.attachments).toEqual([]);
 
-    const released = spatialField.dispatch({ type: 'pointer-up' });
+    const released = spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
     expect(released.attachmentCandidateIds).toEqual([]);
     expect(released.isDragging).toBe(false);
     expect(released.state.attachments).toEqual([['moving', 'target']]);
@@ -233,7 +244,7 @@ describe('spatial field transitions', () => {
       ],
     );
     startDrag(spatialField, 'delete');
-    spatialField.dispatch({ type: 'pointer-up' });
+    spatialField.dispatch({ type: 'pointer-up', pointerId: 1 });
 
     const snapshot = spatialField.dispatch({ type: 'delete-selection' });
 
@@ -243,7 +254,7 @@ describe('spatial field transitions', () => {
         attachments: [['keep', 'other']],
       },
       selectedId: null,
-      grabbedThoughtId: null,
+      independentlyMovingThoughtIds: [],
       attachmentCandidateIds: [],
       isDragging: false,
     });

@@ -458,7 +458,7 @@ describe('spatial field input adapter', () => {
     harness.thoughtPointerDown('held', { x: 500, y: 400 }, false, 3);
     vi.advanceTimersByTime(450);
 
-    expect(harness.interaction.read().grabbedThoughtId).toBe('held');
+    expect(harness.interaction.read().independentlyMovingThoughtIds).toEqual(['held']);
     cleanup();
   });
 

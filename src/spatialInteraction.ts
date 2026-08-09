@@ -1,6 +1,5 @@
 import { createSpaceCamera, type CameraState, type Size } from './spaceCamera';
 import {
-  connectedThoughtIds,
   createSpatialField,
   type Point,
   type SpatialField,
@@ -20,8 +19,8 @@ export type SpatialInteractionInput =
       point: Point;
       singular: boolean;
       detachOnTap?: boolean;
-      pointerId?: number;
-      pointerKind?: PointerKind;
+      pointerId: number;
+      pointerKind: PointerKind;
     }
   | { type: 'clear-selection' }
   | { type: 'delete-selection' }
@@ -89,16 +88,9 @@ export function createSpatialInteraction(
   const field = createSpatialField(initialState);
   const touchPoints = new Map<number, Point>();
   const touchedThoughts = new Map<number, string>();
-  let primaryThoughtTouch: {
-    pointerId: number;
-    id: string;
-    point: Point;
-    clusterIds: Set<string>;
-  } | null = null;
-  let twoThoughtGesture = false;
-  let pulledThoughtPointerId: number | null = null;
   let pinchGesture = false;
   let pinchActive = false;
+  let pinchPointerIds: [number, number] | null = null;
   let viewport: Size = { width: 0, height: 0 };
   let durableState = initialState;
   let snapshot = combineSnapshot(field, camera.read());
@@ -129,46 +121,9 @@ export function createSpatialInteraction(
     dispatch(input) {
       switch (input.type) {
         case 'thought-pointer-down': {
-          if (input.pointerKind === 'touch' && input.pointerId !== undefined) {
+          if (input.pointerKind === 'touch' && pinchGesture) return finish();
+          if (input.pointerKind === 'touch') {
             touchedThoughts.set(input.pointerId, input.id);
-            if (!primaryThoughtTouch) {
-              primaryThoughtTouch = {
-                pointerId: input.pointerId,
-                id: input.id,
-                point: input.point,
-                clusterIds: connectedThoughtIds(input.id, field.read().state.attachments),
-              };
-            } else if (
-              primaryThoughtTouch.pointerId !== input.pointerId &&
-              new Set(touchedThoughts.values()).size >= 2
-            ) {
-              twoThoughtGesture = true;
-              pinchGesture = true;
-              clearSelection();
-              pulledThoughtPointerId = input.pointerId;
-              field.dispatch({
-                type: 'two-pointer-drag-start',
-                pointers: [
-                  {
-                    pointerId: primaryThoughtTouch.pointerId,
-                    point:
-                      touchPoints.get(primaryThoughtTouch.pointerId) ??
-                      primaryThoughtTouch.point,
-                    movingIds: [...primaryThoughtTouch.clusterIds].filter(
-                      (id) => id !== input.id,
-                    ),
-                  },
-                  {
-                    pointerId: input.pointerId,
-                    point: input.point,
-                    movingIds: [input.id],
-                  },
-                ],
-                pulledId: input.id,
-                pulledPointerId: input.pointerId,
-              });
-              return finish([], true, 'grabbing');
-            }
           }
           const before = field.read();
           field.dispatch(input);
@@ -176,19 +131,27 @@ export function createSpatialInteraction(
         }
         case 'canvas-pointer-down': {
           if (input.pointerKind === 'touch') {
-            if (touchPoints.size >= 2) return finish();
             touchPoints.set(input.pointerId, input.point);
             if (touchPoints.size === 2) {
-              if (twoThoughtGesture) return finish([], true, 'grabbing');
+              const touchedIds = new Set(
+                [...touchPoints.keys()]
+                  .map((pointerId) => touchedThoughts.get(pointerId))
+                  .filter((id): id is string => Boolean(id)),
+              );
+              if (touchedIds.size === 2) return finish([], true, 'grabbing');
               const points = [...touchPoints.values()] as [Point, Point];
+              pinchPointerIds = [...touchPoints.keys()] as [number, number];
               pinchGesture = true;
               pinchActive = true;
               camera.dispatch({ type: 'pointer-up' });
-              field.dispatch({ type: 'pointer-up' });
+              for (const pointerId of touchPoints.keys()) {
+                field.dispatch({ type: 'pointer-cancel', pointerId });
+              }
               clearSelection();
               camera.dispatch({ type: 'pinch-start', points });
               return finish([{ type: 'empty-activated' }], true, 'grabbing');
             }
+            if (touchPoints.size > 1) return finish([], true, 'grabbing');
           }
 
           if (thoughtAt(input.point, field.read().state.thoughts, camera)) {
@@ -200,19 +163,11 @@ export function createSpatialInteraction(
         case 'surface-pointer-move': {
           if (input.pointerKind === 'touch' && touchPoints.has(input.pointerId)) {
             touchPoints.set(input.pointerId, input.point);
-            if (twoThoughtGesture) {
-              const before = field.read();
-              field.dispatch({
-                type: 'two-pointer-drag-move',
-                pointerId: input.pointerId,
-                point: input.point,
-                zoom: camera.read().zoom,
-              });
-              return finish([], field.read() !== before);
-            }
-            if (pinchActive) {
-              const points = [...touchPoints.values()];
-              if (points.length === 2) {
+            if (pinchActive && pinchPointerIds?.includes(input.pointerId)) {
+              const points = pinchPointerIds.map((pointerId) =>
+                touchPoints.get(pointerId),
+              );
+              if (points[0] && points[1]) {
                 camera.dispatch({
                   type: 'pinch-move',
                   points: [points[0], points[1]],
@@ -235,6 +190,7 @@ export function createSpatialInteraction(
           const before = field.read();
           field.dispatch({
             type: 'pointer-move',
+            pointerId: input.pointerId,
             point: input.point,
             zoom: camera.read().zoom,
           });
@@ -244,42 +200,14 @@ export function createSpatialInteraction(
           if (input.pointerKind === 'touch' && touchPoints.has(input.pointerId)) {
             touchPoints.delete(input.pointerId);
             touchedThoughts.delete(input.pointerId);
-            if (twoThoughtGesture) {
-              const releasingPulledThought = input.pointerId === pulledThoughtPointerId;
-              const before = field.read();
-              field.dispatch({
-                type: 'two-pointer-drag-end',
-                pointerId: input.pointerId,
-              });
-              if (releasingPulledThought) {
-                pulledThoughtPointerId = null;
-                if (primaryThoughtTouch) {
-                  primaryThoughtTouch.clusterIds = connectedThoughtIds(
-                    primaryThoughtTouch.id,
-                    field.read().state.attachments,
-                  );
-                }
-              }
-              if (touchPoints.size === 0) {
-                twoThoughtGesture = false;
-                pinchGesture = false;
-                primaryThoughtTouch = null;
-              }
-              return finish(
-                [],
-                field.read() !== before,
-                'pointer',
-                releasingPulledThought || touchPoints.size === 0,
-              );
-            }
             if (pinchGesture) {
-              if (pinchActive && touchPoints.size < 2) {
+              if (pinchActive && pinchPointerIds?.includes(input.pointerId)) {
                 camera.dispatch({ type: 'pinch-end' });
                 pinchActive = false;
+                pinchPointerIds = null;
               }
               if (touchPoints.size === 0) {
                 pinchGesture = false;
-                primaryThoughtTouch = null;
               }
               return finish([], false, 'pointer');
             }
@@ -288,8 +216,7 @@ export function createSpatialInteraction(
           const cameraUp = camera.dispatch({ type: 'pointer-up' });
           if (cameraUp.handled) return finish([], false, 'pointer');
           const before = field.read();
-          field.dispatch({ type: 'pointer-up' });
-          if (input.pointerKind === 'touch') primaryThoughtTouch = null;
+          field.dispatch({ type: 'pointer-up', pointerId: input.pointerId });
           return finish([], field.read() !== before, 'pointer', true);
         }
         case 'canvas-click': {
@@ -382,7 +309,8 @@ function combineSnapshot(
     previous &&
     previous.state === fieldSnapshot.state &&
     previous.selectedId === fieldSnapshot.selectedId &&
-    previous.grabbedThoughtId === fieldSnapshot.grabbedThoughtId &&
+    previous.independentlyMovingThoughtIds ===
+      fieldSnapshot.independentlyMovingThoughtIds &&
     previous.attachmentCandidateIds === fieldSnapshot.attachmentCandidateIds &&
     previous.isDragging === fieldSnapshot.isDragging &&
     previous.camera === camera

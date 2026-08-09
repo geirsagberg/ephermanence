@@ -16,7 +16,7 @@ function snapshot(
   return {
     state,
     selectedId: null,
-    grabbedThoughtId: null,
+    independentlyMovingThoughtIds: [],
     attachmentCandidateIds,
     isDragging: false,
     camera: { x: 0, y: 0, zoom: 1 },
@@ -452,7 +452,10 @@ describe('spatial field scene', () => {
     scene.render(snapshot(state), viewport);
     const cachedVisual = thoughts(scene).children[0].children[0] as Container;
 
-    scene.render({ ...snapshot(state), grabbedThoughtId: 'first' }, viewport);
+    scene.render(
+      { ...snapshot(state), independentlyMovingThoughtIds: ['first'] },
+      viewport,
+    );
     scene.advanceAnimations(220);
 
     expect(cachedVisual.y).toBe(-2);
