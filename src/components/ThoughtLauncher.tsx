@@ -1,104 +1,92 @@
-import { Plus } from 'lucide-react';
-import { useAtomValue } from 'jotai';
-import type { CSSProperties } from 'react';
-import { useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
-import { css } from '../../styled-system/css';
+import { Plus } from 'lucide-react'
+import { useAtomValue } from 'jotai'
+import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import {
   composerOpenAtom,
   launcherRequestAtom,
   nextThoughtDarkToneColorAtom,
   nextThoughtToneColorAtom,
-} from '../appState';
-import { getLauncherDragUpdate, type Position } from '../thoughtLauncherDrag';
-import { isIOSDevice, shouldOpenThoughtImmediately } from '../touchThoughtAuthoring';
+} from '../appState'
+import { getLauncherDragUpdate, type Position } from '../thoughtLauncherDrag'
+import { isIOSDevice, shouldOpenThoughtImmediately } from '../touchThoughtAuthoring'
+import {
+  launcherBubbleClass,
+  launcherClass,
+  launcherDragStyle,
+  launcherSeedClass,
+  launcherSeedStyle,
+  launcherToneStyle,
+} from './ThoughtLauncher.css'
 
 type ThoughtLauncherProps = {
-  getTapPosition: () => Position;
-  onOpen: (position: Position) => void;
-};
+  getTapPosition: () => Position
+  onOpen: (position: Position) => void
+}
 
 export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps) {
-  const composerOpen = useAtomValue(composerOpenAtom);
-  const launchRequest = useAtomValue(launcherRequestAtom);
-  const toneColor = useAtomValue(nextThoughtToneColorAtom);
-  const darkToneColor = useAtomValue(nextThoughtDarkToneColorAtom);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const handledLaunchRequest = useRef(launchRequest);
-  const pointerStart = useRef<Position | null>(null);
-  const launcherCenter = useRef<Position | null>(null);
-  const dragStarted = useRef(false);
-  const dragPositionRef = useRef<Position | null>(null);
-  const [dragPosition, setDragPosition] = useState<Position | null>(null);
+  const composerOpen = useAtomValue(composerOpenAtom)
+  const launchRequest = useAtomValue(launcherRequestAtom)
+  const toneColor = useAtomValue(nextThoughtToneColorAtom)
+  const darkToneColor = useAtomValue(nextThoughtDarkToneColorAtom)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const handledLaunchRequest = useRef(launchRequest)
+  const pointerStart = useRef<Position | null>(null)
+  const launcherCenter = useRef<Position | null>(null)
+  const dragStarted = useRef(false)
+  const dragPositionRef = useRef<Position | null>(null)
+  const [dragPosition, setDragPosition] = useState<Position | null>(null)
   const [launch, setLaunch] = useState<{
-    start: Position;
-    target: Position;
-  } | null>(null);
-  const openImmediately = isIOSDevice(navigator);
+    start: Position
+    target: Position
+  } | null>(null)
+  const openImmediately = isIOSDevice(navigator)
 
   useEffect(() => {
-    if (launchRequest === handledLaunchRequest.current) return;
-    handledLaunchRequest.current = launchRequest;
-    const rect = buttonRef.current?.getBoundingClientRect();
-    if (!rect || launch) return;
+    if (launchRequest === handledLaunchRequest.current) return
+    handledLaunchRequest.current = launchRequest
+    const rect = buttonRef.current?.getBoundingClientRect()
+    if (!rect || launch) return
     setLaunch({
       start: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
       target: getTapPosition(),
-    });
-  }, [getTapPosition, launch, launchRequest]);
+    })
+  }, [getTapPosition, launch, launchRequest])
 
-  if (composerOpen && !launch) return null;
+  if (composerOpen && !launch) return null
 
   return (
-    <div
-      className={launcherClass}
-      style={
-        {
-          '--thought-tone': toneColor,
-          '--thought-tone-dark': darkToneColor,
-        } as CSSProperties & Record<'--thought-tone' | '--thought-tone-dark', string>
-      }
-    >
+    <div className={launcherClass} style={launcherToneStyle(toneColor, darkToneColor)}>
       {!composerOpen && !launch && (
         <button
           ref={buttonRef}
           className={launcherBubbleClass}
-          style={
-            dragPosition
-              ? {
-                  left: dragPosition.x,
-                  top: dragPosition.y,
-                  right: 'auto',
-                  bottom: 'auto',
-                  transform: 'translate(-50%, -50%)',
-                }
-              : undefined
-          }
+          style={dragPosition ? launcherDragStyle(dragPosition) : undefined}
           aria-label="Add a thought"
           onPointerDown={(event) => {
-            event.currentTarget.setPointerCapture(event.pointerId);
-            const pointer = { x: event.clientX, y: event.clientY };
-            const rect = event.currentTarget.getBoundingClientRect();
+            event.currentTarget.setPointerCapture(event.pointerId)
+            const pointer = { x: event.clientX, y: event.clientY }
+            const rect = event.currentTarget.getBoundingClientRect()
             const center = {
               x: rect.left + rect.width / 2,
               y: rect.top + rect.height / 2,
-            };
-            pointerStart.current = pointer;
-            launcherCenter.current = center;
-            dragStarted.current = false;
-            dragPositionRef.current = center;
-            setDragPosition(center);
+            }
+            pointerStart.current = pointer
+            launcherCenter.current = center
+            dragStarted.current = false
+            dragPositionRef.current = center
+            setDragPosition(center)
           }}
           onPointerMove={(event) => {
-            if (!pointerStart.current || !launcherCenter.current) return;
+            if (!pointerStart.current || !launcherCenter.current) return
             const update = getLauncherDragUpdate({
               launcherCenter: launcherCenter.current,
               pointer: { x: event.clientX, y: event.clientY },
               pointerStart: pointerStart.current,
-            });
-            dragStarted.current ||= update.isDrag;
-            dragPositionRef.current = update.center;
-            setDragPosition(update.center);
+            })
+            dragStarted.current ||= update.isDrag
+            dragPositionRef.current = update.center
+            setDragPosition(update.center)
           }}
           onPointerUp={(event) => {
             const update =
@@ -108,25 +96,25 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
                     pointer: { x: event.clientX, y: event.clientY },
                     pointerStart: pointerStart.current,
                   })
-                : null;
-            const wasDrag = dragStarted.current || Boolean(update?.isDrag);
-            const dragTarget = update?.center ?? dragPositionRef.current;
-            pointerStart.current = null;
-            launcherCenter.current = null;
-            dragStarted.current = false;
-            dragPositionRef.current = null;
-            setDragPosition(null);
+                : null
+            const wasDrag = dragStarted.current || Boolean(update?.isDrag)
+            const dragTarget = update?.center ?? dragPositionRef.current
+            pointerStart.current = null
+            launcherCenter.current = null
+            dragStarted.current = false
+            dragPositionRef.current = null
+            setDragPosition(null)
             if (wasDrag && dragTarget) {
               if (shouldOpenThoughtImmediately(event.pointerType, openImmediately)) {
-                flushSync(() => onOpen(dragTarget));
+                flushSync(() => onOpen(dragTarget))
               } else {
-                onOpen(dragTarget);
+                onOpen(dragTarget)
               }
-              return;
+              return
             }
 
-            const rect = event.currentTarget.getBoundingClientRect();
-            const target = getTapPosition();
+            const rect = event.currentTarget.getBoundingClientRect()
+            const target = getTapPosition()
             if (shouldOpenThoughtImmediately(event.pointerType, openImmediately)) {
               flushSync(() => {
                 setLaunch({
@@ -135,22 +123,22 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
                     y: rect.top + rect.height / 2,
                   },
                   target,
-                });
-                onOpen(target);
-              });
-              return;
+                })
+                onOpen(target)
+              })
+              return
             }
             setLaunch({
               start: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
               target,
-            });
+            })
           }}
           onPointerCancel={() => {
-            pointerStart.current = null;
-            launcherCenter.current = null;
-            dragStarted.current = false;
-            dragPositionRef.current = null;
-            setDragPosition(null);
+            pointerStart.current = null
+            launcherCenter.current = null
+            dragStarted.current = false
+            dragPositionRef.current = null
+            setDragPosition(null)
           }}
         >
           <Plus size={24} aria-hidden="true" />
@@ -159,88 +147,15 @@ export function ThoughtLauncher({ getTapPosition, onOpen }: ThoughtLauncherProps
       {launch && (
         <span
           className={launcherSeedClass}
-          style={
-            {
-              left: launch.start.x,
-              top: launch.start.y,
-              '--launch-x': `${launch.target.x - launch.start.x}px`,
-              '--launch-y': `${launch.target.y - launch.start.y}px`,
-            } as CSSProperties & Record<'--launch-x' | '--launch-y', string>
-          }
+          style={launcherSeedStyle(launch.start, launch.target)}
           onAnimationEnd={() => {
-            const target = launch.target;
-            setLaunch(null);
-            if (!composerOpen) onOpen(target);
+            const target = launch.target
+            setLaunch(null)
+            if (!composerOpen) onOpen(target)
           }}
           aria-hidden="true"
         />
       )}
     </div>
-  );
+  )
 }
-
-const launcherClass = css({
-  position: 'fixed',
-  zIndex: 8,
-  inset: 0,
-  pointerEvents: 'none',
-});
-
-const launcherBubbleClass = css({
-  position: 'fixed',
-  bottom: 'max(22px, env(safe-area-inset-bottom))',
-  left: '50%',
-  display: 'grid',
-  width: '58px',
-  height: '58px',
-  placeItems: 'center',
-  padding: 0,
-  border: '1px solid rgb(255 255 255 / 72%)',
-  borderRadius: '50%',
-  backgroundColor: 'var(--thought-tone)',
-  backgroundImage:
-    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 58%), transparent 34%)',
-  boxShadow: '0 12px 34px rgb(48 61 54 / 14%), inset 0 -4px 12px rgb(70 92 80 / 6%)',
-  color: '#43544b',
-  cursor: 'grab',
-  touchAction: 'none',
-  transform: 'translateX(-50%)',
-  pointerEvents: 'auto',
-  WebkitTapHighlightColor: 'transparent',
-  _active: {
-    width: '66px',
-    height: '66px',
-    boxShadow: '0 16px 40px rgb(48 61 54 / 18%)',
-    cursor: 'grabbing',
-  },
-  '[data-theme=dark] &': {
-    borderColor: 'rgb(236 242 238 / 24%)',
-    backgroundColor: 'var(--thought-tone-dark)',
-    backgroundImage:
-      'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 12%), transparent 34%)',
-    boxShadow: '0 14px 38px rgb(0 0 0 / 26%), inset 0 -4px 12px rgb(0 0 0 / 8%)',
-    color: '#e7ede8',
-  },
-  transition:
-    'width 180ms ease, height 180ms ease, border-color 480ms ease, background-color 480ms ease, box-shadow 480ms ease, color 480ms ease',
-});
-
-const launcherSeedClass = css({
-  position: 'fixed',
-  width: '58px',
-  height: '58px',
-  border: '1px solid rgb(255 255 255 / 76%)',
-  borderRadius: '50%',
-  backgroundColor: 'var(--thought-tone)',
-  backgroundImage:
-    'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 62%), transparent 34%)',
-  boxShadow: '0 12px 34px rgb(48 61 54 / 12%)',
-  animation: 'launchSeed 200ms ease-out both',
-  '[data-theme=dark] &': {
-    borderColor: 'rgb(236 242 238 / 26%)',
-    backgroundColor: 'var(--thought-tone-dark)',
-    backgroundImage:
-      'radial-gradient(circle at 35% 28%, rgb(255 255 255 / 14%), transparent 34%)',
-    boxShadow: '0 12px 34px rgb(0 0 0 / 24%)',
-  },
-});

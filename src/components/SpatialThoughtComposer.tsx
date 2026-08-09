@@ -1,28 +1,27 @@
-import type { CSSProperties } from 'react';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { css } from '../../styled-system/css';
-import type { ThoughtAuthoringPresentation } from '../spatialFieldScene';
-import { composerPositionForKeyboard } from '../touchThoughtAuthoring';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import type { ThoughtAuthoringPresentation } from '../spatialFieldScene'
+import { composerPositionForKeyboard } from '../touchThoughtAuthoring'
+import { composerClass, composerStyle } from './SpatialThoughtComposer.css'
 
-export type DraftPosition = { x: number; y: number };
+export type DraftPosition = { x: number; y: number }
 
 type SpatialThoughtComposerProps = {
-  dismissOnCancel?: boolean;
-  cancelTargetScale?: number;
-  openScale?: number;
-  position: DraftPosition;
-  initialText?: string;
-  label?: string;
-  visualId: string;
-  tone: number;
-  elevation: ThoughtAuthoringPresentation['elevation'];
-  onCancel: () => void;
-  onExitComplete: () => void;
-  onKeep: (text: string) => void;
-  onVisualChange: (presentation?: ThoughtAuthoringPresentation) => void;
-  onViewportOffsetChange: (offsetY: number) => void;
-  targetScaleForText: (text: string) => number;
-};
+  dismissOnCancel?: boolean
+  cancelTargetScale?: number
+  openScale?: number
+  position: DraftPosition
+  initialText?: string
+  label?: string
+  visualId: string
+  tone: number
+  elevation: ThoughtAuthoringPresentation['elevation']
+  onCancel: () => void
+  onExitComplete: () => void
+  onKeep: (text: string) => void
+  onVisualChange: (presentation?: ThoughtAuthoringPresentation) => void
+  onViewportOffsetChange: (offsetY: number) => void
+  targetScaleForText: (text: string) => number
+}
 
 export function SpatialThoughtComposer({
   dismissOnCancel = false,
@@ -41,51 +40,49 @@ export function SpatialThoughtComposer({
   onViewportOffsetChange,
   targetScaleForText,
 }: SpatialThoughtComposerProps) {
-  const [text, setText] = useState(initialText);
-  const [exit, setExit] = useState<'cancel-close' | 'cancel-dismiss' | 'keep' | null>(
-    null,
-  );
-  const [closeScale, setCloseScale] = useState(0.25);
-  const formRef = useRef<HTMLFormElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const savedRef = useRef(false);
-  const pendingTextRef = useRef('');
+  const [text, setText] = useState(initialText)
+  const [exit, setExit] = useState<'cancel-close' | 'cancel-dismiss' | 'keep' | null>(null)
+  const [closeScale, setCloseScale] = useState(0.25)
+  const formRef = useRef<HTMLFormElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const savedRef = useRef(false)
+  const pendingTextRef = useRef('')
 
   useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+    const textarea = textareaRef.current
+    if (!textarea) return
     const updatePosition = () => {
-      const visualViewport = window.visualViewport;
+      const visualViewport = window.visualViewport
       const safePosition = composerPositionForKeyboard({
         position,
         layoutHeight: window.innerHeight,
         visualViewport: visualViewport
           ? { offsetTop: visualViewport.offsetTop, height: visualViewport.height }
           : undefined,
-      });
-      onViewportOffsetChange(safePosition.y - position.y);
-    };
-    updatePosition();
-    textarea.focus({ preventScroll: true });
-    const end = textarea.value.length;
-    textarea.setSelectionRange(end, end);
-    window.visualViewport?.addEventListener('resize', updatePosition);
-    window.visualViewport?.addEventListener('scroll', updatePosition);
+      })
+      onViewportOffsetChange(safePosition.y - position.y)
+    }
+    updatePosition()
+    textarea.focus({ preventScroll: true })
+    const end = textarea.value.length
+    textarea.setSelectionRange(end, end)
+    window.visualViewport?.addEventListener('resize', updatePosition)
+    window.visualViewport?.addEventListener('scroll', updatePosition)
     return () => {
-      window.visualViewport?.removeEventListener('resize', updatePosition);
-      window.visualViewport?.removeEventListener('scroll', updatePosition);
-      onViewportOffsetChange(0);
-    };
-  }, [onViewportOffsetChange, position]);
+      window.visualViewport?.removeEventListener('resize', updatePosition)
+      window.visualViewport?.removeEventListener('scroll', updatePosition)
+      onViewportOffsetChange(0)
+    }
+  }, [onViewportOffsetChange, position])
 
   useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    textarea.style.height = '0';
-    const contentHeight = Math.ceil(textarea.scrollHeight);
-    textarea.style.height = `${Math.min(contentHeight, 112)}px`;
-    textarea.style.overflowY = contentHeight > 112 ? 'auto' : 'hidden';
-  }, [text]);
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = '0'
+    const contentHeight = Math.ceil(textarea.scrollHeight)
+    textarea.style.height = `${Math.min(contentHeight, 112)}px`
+    textarea.style.overflowY = contentHeight > 112 ? 'auto' : 'hidden'
+  }, [text])
 
   useLayoutEffect(() => {
     onVisualChange({
@@ -95,97 +92,79 @@ export function SpatialThoughtComposer({
       openScale,
       phase: exit ?? 'open',
       closeScale,
-      text:
-        exit === 'keep'
-          ? pendingTextRef.current
-          : exit === 'cancel-close'
-            ? initialText
-            : undefined,
+      text: exit === 'keep' ? pendingTextRef.current : exit === 'cancel-close' ? initialText : undefined,
       elevation,
-    });
-  }, [
-    closeScale,
-    elevation,
-    exit,
-    initialText,
-    onVisualChange,
-    openScale,
-    position,
-    tone,
-    visualId,
-  ]);
+    })
+  }, [closeScale, elevation, exit, initialText, onVisualChange, openScale, position, tone, visualId])
 
-  useLayoutEffect(() => () => onVisualChange(), [onVisualChange]);
+  useLayoutEffect(() => () => onVisualChange(), [onVisualChange])
 
   const keep = useCallback(() => {
-    const next = text.trim();
-    if (!next || savedRef.current) return;
-    savedRef.current = true;
-    pendingTextRef.current = next;
-    setCloseScale(targetScaleForText(next));
-    setExit('keep');
-  }, [targetScaleForText, text]);
+    const next = text.trim()
+    if (!next || savedRef.current) return
+    savedRef.current = true
+    pendingTextRef.current = next
+    setCloseScale(targetScaleForText(next))
+    setExit('keep')
+  }, [targetScaleForText, text])
 
   const cancel = useCallback(() => {
-    if (savedRef.current) return;
-    savedRef.current = true;
-    if (!dismissOnCancel) setCloseScale(cancelTargetScale);
-    setExit(dismissOnCancel ? 'cancel-dismiss' : 'cancel-close');
-  }, [cancelTargetScale, dismissOnCancel]);
+    if (savedRef.current) return
+    savedRef.current = true
+    if (!dismissOnCancel) setCloseScale(cancelTargetScale)
+    setExit(dismissOnCancel ? 'cancel-dismiss' : 'cancel-close')
+  }, [cancelTargetScale, dismissOnCancel])
 
   useEffect(() => {
-    if (!exit) return;
+    if (!exit) return
     const suppressClick = (event: MouseEvent) => {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-    window.addEventListener('click', suppressClick, true);
-    window.addEventListener('dblclick', suppressClick, true);
+      event.preventDefault()
+      event.stopImmediatePropagation()
+    }
+    window.addEventListener('click', suppressClick, true)
+    window.addEventListener('dblclick', suppressClick, true)
     return () => {
-      window.removeEventListener('click', suppressClick, true);
-      window.removeEventListener('dblclick', suppressClick, true);
-    };
-  }, [exit]);
+      window.removeEventListener('click', suppressClick, true)
+      window.removeEventListener('dblclick', suppressClick, true)
+    }
+  }, [exit])
 
   useEffect(() => {
     const saveOnTapAway = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node) || formRef.current?.contains(target)) return;
-      event.preventDefault();
-      event.stopPropagation();
+      const target = event.target
+      if (!(target instanceof Node) || formRef.current?.contains(target)) return
+      event.preventDefault()
+      event.stopPropagation()
       if (text.trim()) {
-        keep();
+        keep()
       } else {
-        cancel();
+        cancel()
       }
-    };
-    window.addEventListener('pointerdown', saveOnTapAway, true);
-    return () => window.removeEventListener('pointerdown', saveOnTapAway, true);
-  }, [cancel, keep, text]);
+    }
+    window.addEventListener('pointerdown', saveOnTapAway, true)
+    return () => window.removeEventListener('pointerdown', saveOnTapAway, true)
+  }, [cancel, keep, text])
 
   return (
     <form
       ref={formRef}
       className={composerClass}
       data-exit={exit ?? undefined}
-      style={
-        {
-          left: position.x,
-          top: position.y,
-          '--composer-open-scale': openScale,
-          '--composer-close-scale': closeScale,
-        } as CSSProperties &
-          Record<'--composer-open-scale' | '--composer-close-scale', string | number>
-      }
+      style={composerStyle({
+        x: position.x,
+        y: position.y,
+        openScale,
+        closeScale,
+      })}
       onSubmit={(event) => {
-        event.preventDefault();
-        keep();
+        event.preventDefault()
+        keep()
       }}
       onAnimationEnd={() => {
-        if (!exit) return;
-        if (exit === 'keep') onKeep(pendingTextRef.current);
-        else onCancel();
-        onExitComplete();
+        if (!exit) return
+        if (exit === 'keep') onKeep(pendingTextRef.current)
+        else onCancel()
+        onExitComplete()
       }}
     >
       <textarea
@@ -194,16 +173,12 @@ export function SpatialThoughtComposer({
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
-            event.preventDefault();
-            cancel();
+            event.preventDefault()
+            cancel()
           }
-          if (
-            event.key === 'Enter' &&
-            !event.shiftKey &&
-            !event.nativeEvent.isComposing
-          ) {
-            event.preventDefault();
-            keep();
+          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            event.preventDefault()
+            keep()
           }
         }}
         placeholder="A thought…"
@@ -212,55 +187,5 @@ export function SpatialThoughtComposer({
         aria-label={label}
       />
     </form>
-  );
+  )
 }
-
-const composerClass = css({
-  position: 'fixed',
-  zIndex: 10,
-  display: 'grid',
-  width: '210px',
-  height: '210px',
-  placeItems: 'center',
-  padding: '28px',
-  border: 0,
-  borderRadius: '50%',
-  background: 'transparent',
-  transform: 'translate(-50%, -50%)',
-  animation: 'composerBloom 240ms cubic-bezier(0.2, 0.8, 0.2, 1) both',
-  '&[data-exit]': {
-    pointerEvents: 'none',
-  },
-  '&[data-exit="cancel-dismiss"]': {
-    animation: 'composerDismiss 180ms ease-in both',
-  },
-  '&[data-exit="cancel-close"], &[data-exit="keep"]': {
-    animation: 'composerClose 200ms cubic-bezier(0.4, 0, 0.2, 1) both',
-  },
-  '& textarea': {
-    width: '100%',
-    height: 'auto',
-    maxHeight: '112px',
-    overflowY: 'hidden',
-    padding: 0,
-    border: 0,
-    background: 'transparent',
-    color: '#26312d',
-    fontFamily: 'serif',
-    fontSize: '18px',
-    lineHeight: 1.18,
-    textAlign: 'center',
-    outline: 0,
-    resize: 'none',
-    '&::placeholder': {
-      color: 'rgb(38 49 45 / 38%)',
-    },
-    '[data-theme=dark] &': {
-      color: '#e8eee9',
-      '&::placeholder': {
-        color: 'rgb(232 238 233 / 40%)',
-      },
-    },
-    transition: 'color 480ms ease',
-  },
-});
