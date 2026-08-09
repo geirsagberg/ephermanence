@@ -13,6 +13,14 @@ export type SpatialFieldInput =
     }
   | { type: 'pointer-move'; point: Point; zoom: number }
   | { type: 'pointer-up' }
+  | {
+      type: 'two-pointer-drag-start';
+      pointers: { pointerId: number; point: Point; movingIds: string[] }[];
+      pulledId: string;
+      pulledPointerId: number;
+    }
+  | { type: 'two-pointer-drag-move'; pointerId: number; point: Point; zoom: number }
+  | { type: 'two-pointer-drag-end'; pointerId: number }
   | { type: 'clear-selection' }
   | { type: 'delete-selection' }
   | { type: 'edit-thought'; id: string; text: string }
@@ -37,6 +45,14 @@ type Drag = {
   detachOnTap: boolean;
 };
 
+type TwoPointerDrag = {
+  pointers: Map<number, { lastPoint: Point; movingIds: Set<string> }>;
+  pulledId: string;
+  pulledPointerId: number;
+  distance: number;
+  started: boolean;
+};
+
 export type SpatialField = {
   read: () => SpatialFieldSnapshot;
   dispatch: (input: SpatialFieldInput) => SpatialFieldSnapshot;
@@ -47,6 +63,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
   let selectedId: string | null = null;
   let attachmentCandidateIds: string[] = [];
   let drag: Drag | null = null;
+  let twoPointerDrag: TwoPointerDrag | null = null;
   let snapshot: SpatialFieldSnapshot = {
     state,
     selectedId,
@@ -62,6 +79,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
     dispatch(input) {
       switch (input.type) {
         case 'thought-pointer-down': {
+          twoPointerDrag = null;
           attachmentCandidateIds = [];
           if (input.singular) {
             state = {
@@ -150,6 +168,74 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
           attachmentCandidateIds = [];
           break;
         }
+        case 'two-pointer-drag-start': {
+          drag = null;
+          attachmentCandidateIds = [];
+          selectedId = null;
+          twoPointerDrag = {
+            pointers: new Map(
+              input.pointers.map(({ pointerId, point, movingIds }) => [
+                pointerId,
+                { lastPoint: point, movingIds: new Set(movingIds) },
+              ]),
+            ),
+            pulledId: input.pulledId,
+            pulledPointerId: input.pulledPointerId,
+            distance: 0,
+            started: false,
+          };
+          break;
+        }
+        case 'two-pointer-drag-move': {
+          const activePointer = twoPointerDrag?.pointers.get(input.pointerId);
+          if (!twoPointerDrag || !activePointer) break;
+          const dx = input.point.x - activePointer.lastPoint.x;
+          const dy = input.point.y - activePointer.lastPoint.y;
+          activePointer.lastPoint = input.point;
+          twoPointerDrag.distance += Math.hypot(dx, dy);
+          if (!twoPointerDrag.started && twoPointerDrag.distance >= 4) {
+            twoPointerDrag.started = true;
+          }
+          state = {
+            ...state,
+            thoughts: translateThoughts(
+              state.thoughts,
+              activePointer.movingIds,
+              dx / input.zoom,
+              dy / input.zoom,
+            ),
+          };
+          attachmentCandidateIds = twoPointerDrag.started
+            ? findAttachmentCandidateIds(
+                state.thoughts,
+                state.attachments,
+                new Set([twoPointerDrag.pulledId]),
+                true,
+              )
+            : [];
+          break;
+        }
+        case 'two-pointer-drag-end': {
+          if (!twoPointerDrag) break;
+          const releasedPointer = twoPointerDrag.pointers.get(input.pointerId);
+          twoPointerDrag.pointers.delete(input.pointerId);
+          if (twoPointerDrag.started && releasedPointer) {
+            state = {
+              ...state,
+              attachments: recalculateAttachments(
+                state.thoughts,
+                state.attachments,
+                releasedPointer.movingIds,
+                input.pointerId === twoPointerDrag.pulledPointerId,
+              ),
+            };
+            attachmentCandidateIds = [];
+          }
+          if (twoPointerDrag.pointers.size > 0) break;
+          twoPointerDrag = null;
+          attachmentCandidateIds = [];
+          break;
+        }
         case 'clear-selection': {
           selectedId = null;
           break;
@@ -202,6 +288,7 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
           selectedId = null;
           attachmentCandidateIds = [];
           drag = null;
+          twoPointerDrag = null;
           break;
         }
       }
@@ -211,14 +298,14 @@ export function createSpatialField(initialState: SpaceState): SpatialField {
         selectedId !== snapshot.selectedId ||
         (drag?.singular ? drag.activeId : null) !== snapshot.grabbedThoughtId ||
         attachmentCandidateIds !== snapshot.attachmentCandidateIds ||
-        Boolean(drag?.started) !== snapshot.isDragging
+        Boolean(drag?.started || twoPointerDrag?.started) !== snapshot.isDragging
       ) {
         snapshot = {
           state,
           selectedId,
           grabbedThoughtId: drag?.singular ? drag.activeId : null,
           attachmentCandidateIds,
-          isDragging: Boolean(drag?.started),
+          isDragging: Boolean(drag?.started || twoPointerDrag?.started),
         };
       }
       return snapshot;

@@ -160,10 +160,17 @@ describe('spatial field scene', () => {
     thoughts(scene).children[0].emit('pointerdown', {
       global: new Point(12, 34),
       pointerId: 7,
+      pointerType: 'touch',
       shiftKey: false,
     } as FederatedPointerEvent);
 
-    expect(onPointerDown).toHaveBeenCalledWith('held', { x: 12, y: 34 }, false, 7);
+    expect(onPointerDown).toHaveBeenCalledWith(
+      'held',
+      { x: 12, y: 34 },
+      false,
+      7,
+      'touch',
+    );
   });
 
   it('reuses an unchanged Thought display object across drag frames', () => {

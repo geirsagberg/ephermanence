@@ -89,6 +89,7 @@ type PointerGesture = { distance: number; lastPoint: Point };
 type LongPress = {
   id: string;
   pointerId: number;
+  pointerKind: string;
   distance: number;
   lastPoint: Point;
   timer: ReturnType<typeof setTimeout> | null;
@@ -276,11 +277,17 @@ export function createSpatialFieldInputAdapter({
     }
   };
 
-  const beginLongPress = (id: string, point: Point, pointerId: number) => {
+  const beginLongPress = (
+    id: string,
+    point: Point,
+    pointerId: number,
+    pointerKind: string,
+  ) => {
     if (longPress) return;
     longPress = {
       id,
       pointerId,
+      pointerKind,
       distance: 0,
       lastPoint: point,
       timer: runtime.setDelay(() => {
@@ -292,6 +299,8 @@ export function createSpatialFieldInputAdapter({
           id: pending.id,
           point: pending.lastPoint,
           singular: true,
+          pointerId: pending.pointerId,
+          pointerKind: pending.pointerKind,
         });
       }, longPressDelay),
     };
@@ -302,13 +311,21 @@ export function createSpatialFieldInputAdapter({
     point: Point,
     singular: boolean,
     pointerId: number,
+    pointerKind = '',
   ) => {
     if (!pointerGestures.has(pointerId)) {
       pointerGestures.set(pointerId, { distance: 0, lastPoint: point });
     }
-    dispatch({ type: 'thought-pointer-down', id, point, singular });
+    dispatch({
+      type: 'thought-pointer-down',
+      id,
+      point,
+      singular,
+      pointerId,
+      pointerKind,
+    });
     if (singular) cancelLongPress();
-    else beginLongPress(id, point, pointerId);
+    else beginLongPress(id, point, pointerId, pointerKind);
   };
 
   const attachListeners = (mountedScene: MountedSpatialFieldScene) => {

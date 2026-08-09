@@ -57,6 +57,7 @@ type ThoughtPointerDown = (
   point: Point,
   singular: boolean,
   pointerId: number,
+  pointerKind?: string,
 ) => void;
 type BondGeometry = { from: Point; to: Point };
 type ThoughtShadowFilterFactory = (elevation: number) => DropShadowFilter;
@@ -713,6 +714,7 @@ function createThoughtBubble(
       { x: event.global.x, y: event.global.y },
       event.shiftKey,
       event.pointerId,
+      event.pointerType,
     );
     bubble.cursor = 'grabbing';
   });

@@ -1,26 +1,14 @@
 # Ephermanence
 
-A spatial canvas for capturing thoughts and discovering connections by bringing them
-together.
+Ephermanence is a spatial canvas for capturing thoughts and discovering relationships
+through proximity and movement.
 
-Thoughts and their bonds are stored locally in the browser. Add `?debug` to the URL to
-open the sample spatial field without reading or changing the stored field.
-
-## Controls
-
-- Double-click empty space to create a thought.
-- Double-click a thought to edit it; click it to select or delete it.
-- Drag a thought to move its connected group. Shift-drag to move it independently and
-  recalculate its connections.
-- Bring thoughts into contact and release to connect them.
-- Drag empty space to pan. Scroll, `+`, or `-` to zoom; `0` resets zoom.
-- Press Enter to create a thought at the pointer, or at the viewport center when the
-  pointer is outside the spatial field. Enter saves; Shift+Enter adds a line break;
-  Escape cancels.
+Thoughts can be arranged freely and brought together to form visible bonds. The space
+is stored locally in the browser, keeping the experience private and immediate.
 
 ## Development
 
-Requires [Bun](https://bun.sh/).
+Development requires [Bun](https://bun.sh/).
 
 ```sh
 bun install
@@ -32,6 +20,14 @@ bun run check
 bun run test
 bun run build
 ```
+
+Add `?debug` to the local URL to open the sample spatial field without reading or
+changing the stored field.
+
+## Hosting
+
+Run `bun run build` and publish the generated `dist` directory with any static hosting
+provider. The app is a client-side experience and does not require a backend.
 
 ## License
 
