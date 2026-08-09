@@ -21,6 +21,7 @@ import {
 } from './components/AmbientBubbleTuner';
 import { SpatialThoughtComposer } from './components/SpatialThoughtComposer';
 import { ThoughtSpace } from './components/ThoughtSpace';
+import { ZoomControls } from './components/ZoomControls';
 import { spaceForQuery } from './initialSpace';
 import { createSpatialInteraction } from './spatialInteraction';
 import {
@@ -202,6 +203,7 @@ function AppView({ runtime }: { runtime: AppRuntime }) {
                 return true;
               }}
             />
+            <ZoomControls inputAdapter={runtime.fieldInput} />
           </header>
           <ThoughtSpace
             interaction={runtime.interaction}

@@ -44,6 +44,7 @@ export type SpatialFieldAdapterInput =
   | { type: 'authoring-command'; command: ThoughtAuthoringCommand }
   | { type: 'launcher-open'; point: Point }
   | { type: 'replace-space'; state: SpaceState }
+  | { type: 'camera-control'; control: 'fit-all' | 'reset-zoom' }
   | {
       type: 'thought-control';
       thoughtId: string;
@@ -124,6 +125,7 @@ export function createSpatialFieldInputAdapter({
   let longPress: LongPress | null = null;
   let controlClickArmedAt: number | null = null;
   let frameHandle: number | null = null;
+  let cameraAnimationHandle: number | null = null;
   let pendingEffects: SpatialInteractionEffect[] = [];
   let pendingLaunchRequests = 0;
 
@@ -181,8 +183,15 @@ export function createSpatialFieldInputAdapter({
     return transition;
   };
 
-  const dispatch = (input: SpatialInteractionInput) =>
-    finishTransition(interaction.dispatch(input));
+  const cancelCameraAnimation = () => {
+    if (cameraAnimationHandle !== null) runtime.cancelFrame(cameraAnimationHandle);
+    cameraAnimationHandle = null;
+  };
+
+  const dispatch = (input: SpatialInteractionInput) => {
+    cancelCameraAnimation();
+    return finishTransition(interaction.dispatch(input));
+  };
 
   const pointInCanvas = (point: Point) => {
     if (!scene) return point;
@@ -277,6 +286,45 @@ export function createSpatialFieldInputAdapter({
     ) {
       activateControl(control, thoughtId);
     }
+  };
+
+  const sendCameraControl = (control: 'fit-all' | 'reset-zoom') => {
+    cancelCameraAnimation();
+    const start = interaction.read().camera;
+    const targetTransition = interaction.dispatch({ type: control });
+    const target = targetTransition.snapshot.camera;
+    if (
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+      (start.x === target.x && start.y === target.y && start.zoom === target.zoom)
+    ) {
+      finishTransition(targetTransition);
+      return;
+    }
+
+    const restored = interaction.dispatch({ type: 'set-camera', camera: start });
+    finishTransition({ ...restored, effects: targetTransition.effects });
+    let startedAt: number | null = null;
+    const animate = (now: number) => {
+      startedAt ??= now;
+      const progress = Math.min(1, (now - startedAt) / 320);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      finishTransition(
+        interaction.dispatch({
+          type: 'set-camera',
+          camera: {
+            x: start.x + (target.x - start.x) * eased,
+            y: start.y + (target.y - start.y) * eased,
+            zoom: start.zoom + (target.zoom - start.zoom) * eased,
+          },
+        }),
+      );
+      if (progress < 1) {
+        cameraAnimationHandle = runtime.requestFrame(animate);
+      } else {
+        cameraAnimationHandle = null;
+      }
+    };
+    cameraAnimationHandle = runtime.requestFrame(animate);
   };
 
   const beginLongPress = (
@@ -489,6 +537,7 @@ export function createSpatialFieldInputAdapter({
     controlClickArmedAt = null;
     if (frameHandle !== null) runtime.cancelFrame(frameHandle);
     frameHandle = null;
+    cancelCameraAnimation();
     pendingEffects = [];
     pendingLaunchRequests = 0;
     scene?.destroy();
@@ -532,6 +581,10 @@ export function createSpatialFieldInputAdapter({
       return () => unmount(generation);
     },
     send(input) {
+      if (input.type === 'camera-control') {
+        sendCameraControl(input.control);
+        return;
+      }
       if (input.type === 'present-authoring') {
         authoringPresentation = input.presentation;
         scene?.presentAuthoring(authoringPresentation);

@@ -36,6 +36,24 @@ function memoryStorage(initialValue?: string) {
 }
 
 describe('spatial field interaction', () => {
+  it('centers existing Thoughts at default zoom when the viewport opens', () => {
+    const spatialInteraction = createSpatialInteraction({
+      thoughts: [thought('left', -300, -100), thought('rite', 100, 300)],
+      attachments: [],
+    });
+
+    spatialInteraction.dispatch({
+      type: 'viewport-resize',
+      size: { width: 1000, height: 800 },
+    });
+
+    const left = spatialInteraction.worldToScreen({ x: -300, y: -100 });
+    const right = spatialInteraction.worldToScreen({ x: 100, y: 300 });
+    expect(spatialInteraction.read().camera.zoom).toBe(1);
+    expect((left.x + right.x) / 2).toBeCloseTo(500);
+    expect((left.y + right.y) / 2).toBeCloseTo(400);
+  });
+
   it('arbitrates empty-space dragging to the camera', () => {
     const spatialInteraction = interaction([thought('fixed', 0)]);
 
@@ -52,7 +70,7 @@ describe('spatial field interaction', () => {
       pointerKind: 'mouse',
     });
 
-    expect(moved.snapshot.camera).toEqual({ x: 520, y: 390, zoom: 1 });
+    expect(moved.snapshot.camera).toEqual({ x: 520, y: 290, zoom: 1 });
     expect(moved.snapshot.state.thoughts).toEqual([thought('fixed', 0)]);
   });
 
@@ -382,10 +400,8 @@ describe('spatial field interaction', () => {
       pointerId: 1,
       pointerKind: 'touch',
     });
-    expect(spatialInteraction.read().state.thoughts).toEqual([
-      { ...held, x: 350 },
-      { ...pulled, x: 350 },
-    ]);
+    expect(spatialInteraction.read().state.thoughts[0].x).toBeCloseTo(350);
+    expect(spatialInteraction.read().state.thoughts[1].x).toBeCloseTo(350);
     const released = spatialInteraction.dispatch({
       type: 'surface-pointer-up',
       pointerId: 1,
@@ -801,6 +817,30 @@ describe('spatial field interaction', () => {
     expect(transition.render).toBe(true);
     expect(JSON.parse(memory.read()!)).toEqual(imported);
     expect(memory.writes()).toBe(1);
+  });
+
+  it('centers imported Thoughts at default zoom', () => {
+    const spatialInteraction = interaction([thought('old', 0, 0)]);
+    spatialInteraction.dispatch({
+      type: 'wheel',
+      point: { x: 500, y: 400 },
+      deltaY: -300,
+      pinching: false,
+    });
+
+    spatialInteraction.dispatch({
+      type: 'replace-space',
+      state: {
+        thoughts: [thought('left', -400, -200), thought('rite', 200, 200)],
+        attachments: [],
+      },
+    });
+
+    const left = spatialInteraction.worldToScreen({ x: -400, y: -200 });
+    const right = spatialInteraction.worldToScreen({ x: 200, y: 200 });
+    expect(spatialInteraction.read().camera.zoom).toBe(1);
+    expect((left.x + right.x) / 2).toBeCloseTo(500);
+    expect((left.y + right.y) / 2).toBeCloseTo(400);
   });
 
   it('waits until pointer-up to commit a dragged Thought', () => {

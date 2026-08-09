@@ -8,6 +8,7 @@ export type CameraState = {
 };
 
 export type CameraInput =
+  | { type: 'set-state'; state: CameraState }
   | { type: 'pan-start'; point: Point }
   | { type: 'pointer-move'; point: Point }
   | { type: 'pointer-up' }
@@ -16,6 +17,11 @@ export type CameraInput =
   | { type: 'pinch-end' }
   | { type: 'wheel'; point: Point; deltaY: number; pinching: boolean }
   | { type: 'zoom-key'; key: '+' | '-' | '0'; center: Point }
+  | {
+      type: 'fit-bounds';
+      bounds: { left: number; top: number; right: number; bottom: number };
+      padding: number;
+    }
   | { type: 'viewport-resize'; size: Size };
 
 export type CameraTransition = {
@@ -75,6 +81,10 @@ export function createSpaceCamera(
     worldToScreen,
     dispatch(input) {
       switch (input.type) {
+        case 'set-state': {
+          state = input.state;
+          return { state, handled: true, navigated: true };
+        }
         case 'pan-start': {
           pan = { distance: 0, lastPoint: input.point };
           return { state, handled: true, navigated: false };
@@ -127,6 +137,27 @@ export function createSpaceCamera(
         case 'zoom-key': {
           const factor = input.key === '+' ? 1.2 : input.key === '-' ? 1 / 1.2 : 1;
           zoomAt(input.center, input.key === '0' ? 1 : state.zoom * factor);
+          return { state, handled: true, navigated: true };
+        }
+        case 'fit-bounds': {
+          if (!viewport) return { state, handled: false, navigated: false };
+          const width = Math.max(1, input.bounds.right - input.bounds.left);
+          const height = Math.max(1, input.bounds.bottom - input.bounds.top);
+          const availableWidth = Math.max(1, viewport.width - input.padding * 2);
+          const availableHeight = Math.max(1, viewport.height - input.padding * 2);
+          const zoom = Math.max(
+            0.3,
+            Math.min(3, availableWidth / width, availableHeight / height),
+          );
+          const center = {
+            x: (input.bounds.left + input.bounds.right) / 2,
+            y: (input.bounds.top + input.bounds.bottom) / 2,
+          };
+          state = {
+            x: viewport.width / 2 - center.x * zoom,
+            y: viewport.height / 2 - center.y * zoom,
+            zoom,
+          };
           return { state, handled: true, navigated: true };
         }
         case 'viewport-resize': {

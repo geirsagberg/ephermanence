@@ -13,6 +13,7 @@ import type { SpaceState, Thought } from './types';
 export type PointerKind = string;
 
 export type SpatialInteractionInput =
+  | { type: 'set-camera'; camera: CameraState }
   | {
       type: 'thought-pointer-down';
       id: string;
@@ -47,6 +48,8 @@ export type SpatialInteractionInput =
   | { type: 'canvas-double-click'; point: Point }
   | { type: 'wheel'; point: Point; deltaY: number; pinching: boolean }
   | { type: 'key-down'; key: '+' | '-' | '0' }
+  | { type: 'fit-all' }
+  | { type: 'reset-zoom' }
   | { type: 'viewport-resize'; size: Size }
   | { type: 'launcher-open'; point: Point }
   | { type: 'replace-space'; state: SpaceState };
@@ -92,6 +95,7 @@ export function createSpatialInteraction(
   let pinchActive = false;
   let pinchPointerIds: [number, number] | null = null;
   let viewport: Size = { width: 0, height: 0 };
+  let viewportInitialized = false;
   let durableState = initialState;
   let snapshot = combineSnapshot(field, camera.read());
 
@@ -120,6 +124,10 @@ export function createSpatialInteraction(
     worldToScreen: camera.worldToScreen,
     dispatch(input) {
       switch (input.type) {
+        case 'set-camera': {
+          camera.dispatch({ type: 'set-state', state: input.camera });
+          return finish([], true);
+        }
         case 'thought-pointer-down': {
           if (input.pointerKind === 'touch' && pinchGesture) return finish();
           if (input.pointerKind === 'touch') {
@@ -259,9 +267,29 @@ export function createSpatialInteraction(
           clearSelection();
           return finish([{ type: 'empty-activated' }], true);
         }
+        case 'reset-zoom': {
+          const center = { x: viewport.width / 2, y: viewport.height / 2 };
+          camera.dispatch({ type: 'zoom-key', key: '0', center });
+          clearSelection();
+          return finish([{ type: 'empty-activated' }], true);
+        }
+        case 'fit-all': {
+          const thoughts = field.read().state.thoughts;
+          if (thoughts.length === 0) return finish();
+          const bounds = thoughtBounds(thoughts);
+          camera.dispatch({ type: 'fit-bounds', bounds, padding: 72 });
+          clearSelection();
+          return finish([{ type: 'empty-activated' }], true);
+        }
         case 'viewport-resize': {
+          const firstViewport = !viewportInitialized;
+          viewportInitialized = true;
           viewport = input.size;
           camera.dispatch(input);
+          const thoughts = field.read().state.thoughts;
+          if (firstViewport && thoughts.length > 0) {
+            centerThoughtsAtDefault(camera, thoughts, viewport);
+          }
           return finish([], true);
         }
         case 'launcher-open': {
@@ -274,6 +302,14 @@ export function createSpatialInteraction(
               tone: normalizeThoughtTone(field.read().state.thoughts.length),
             },
           ]);
+        }
+        case 'replace-space': {
+          const before = field.read();
+          field.dispatch(input);
+          if (viewportInitialized && input.state.thoughts.length > 0) {
+            centerThoughtsAtDefault(camera, input.state.thoughts, viewport);
+          }
+          return finish([], field.read() !== before, undefined, true);
         }
         default: {
           const before = field.read();
@@ -333,4 +369,39 @@ function thoughtAt(
         Math.hypot(thought.x - worldPoint.x, thought.y - worldPoint.y) <=
         thoughtRadius(thought.text),
     );
+}
+
+function thoughtBounds(thoughts: Thought[]) {
+  return thoughts.reduce(
+    (result, thought) => {
+      const radius = thoughtRadius(thought.text);
+      return {
+        left: Math.min(result.left, thought.x - radius),
+        top: Math.min(result.top, thought.y - radius),
+        right: Math.max(result.right, thought.x + radius),
+        bottom: Math.max(result.bottom, thought.y + radius),
+      };
+    },
+    { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity },
+  );
+}
+
+function centerThoughtsAtDefault(
+  camera: ReturnType<typeof createSpaceCamera>,
+  thoughts: Thought[],
+  viewport: Size,
+) {
+  const bounds = thoughtBounds(thoughts);
+  const center = {
+    x: (bounds.left + bounds.right) / 2,
+    y: (bounds.top + bounds.bottom) / 2,
+  };
+  camera.dispatch({
+    type: 'set-state',
+    state: {
+      x: viewport.width / 2 - center.x,
+      y: viewport.height / 2 - center.y,
+      zoom: 1,
+    },
+  });
 }
