@@ -1,14 +1,14 @@
-import type { Point } from './spatialField';
-import type { Attachment } from './types';
+import type { Point } from './spatialField'
+import type { Attachment } from './types'
 
-export const THOUGHT_ACTION_SIZE = 40;
+export const THOUGHT_ACTION_SIZE = 40
 
 export function hasThoughtAttachment(id: string, attachments: Attachment[]) {
-  return attachments.some(([a, b]) => a === id || b === id);
+  return attachments.some(([a, b]) => a === id || b === id)
 }
 
 export function positionThoughtActions(center: Point, screenRadius: number) {
-  const diagonalOffset = screenRadius / Math.SQRT2;
+  const diagonalOffset = screenRadius / Math.SQRT2
 
   return {
     edit: {
@@ -23,5 +23,5 @@ export function positionThoughtActions(center: Point, screenRadius: number) {
       x: center.x,
       y: center.y + screenRadius,
     },
-  };
+  }
 }

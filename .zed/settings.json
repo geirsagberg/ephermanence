@@ -8,14 +8,33 @@
       "arguments": ["fmt", "--stdin-filepath", "{buffer_path}"]
     }
   },
+  "lsp": {
+    "typescript-ls": {
+      "settings": {
+        "package_version": "7.0.2"
+      }
+    }
+  },
   "languages": {
     "TypeScript": {
+      "language_servers": [
+        "typescript-ls",
+        "!vtsls",
+        "!typescript-language-server",
+        "..."
+      ],
       "code_actions_on_format": {
         "source.organizeImports": true,
         "source.organizeImports.biome": false
       }
     },
     "TSX": {
+      "language_servers": [
+        "typescript-ls",
+        "!vtsls",
+        "!typescript-language-server",
+        "..."
+      ],
       "code_actions_on_format": {
         "source.organizeImports": true,
         "source.organizeImports.biome": false

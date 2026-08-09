@@ -1,42 +1,35 @@
-import type {
-  AmbientBubbleSettings,
-  MountedSpatialFieldScene,
-  ThoughtAuthoringPresentation,
-} from './spatialFieldScene';
-import {
-  defaultAmbientBubbleSettings,
-  mountSpatialFieldScene,
-} from './spatialFieldScene';
+import type { AmbientBubbleSettings, MountedSpatialFieldScene, ThoughtAuthoringPresentation } from './spatialFieldScene'
+import { defaultAmbientBubbleSettings, mountSpatialFieldScene } from './spatialFieldScene'
 import type {
   SpatialInteraction,
   SpatialInteractionEffect,
   SpatialInteractionInput,
   SpatialInteractionSnapshot,
   SpatialInteractionTransition,
-} from './spatialInteraction';
-import type { Point } from './spatialField';
-import type { ThoughtAuthoringCommand } from './thoughtAuthoring';
-import type { SpaceState } from './types';
-import { isIOSDevice } from './touchThoughtAuthoring';
+} from './spatialInteraction'
+import type { Point } from './spatialField'
+import type { ThoughtAuthoringCommand } from './thoughtAuthoring'
+import type { SpaceState } from './types'
+import { isIOSDevice } from './touchThoughtAuthoring'
 
 export type SpatialFieldPresentation = {
-  ambientBubbleSettings: AmbientBubbleSettings;
-  hiddenThoughtId?: string;
-  colorMode: 'light' | 'dark';
-};
+  ambientBubbleSettings: AmbientBubbleSettings
+  hiddenThoughtId?: string
+  colorMode: 'light' | 'dark'
+}
 
-export type ThoughtControl = 'edit' | 'delete' | 'grab';
+export type ThoughtControl = 'edit' | 'delete' | 'grab'
 
 export type ThoughtControlEvent = {
-  phase: 'pointer-down' | 'pointer-up' | 'pointer-cancel' | 'keyboard-activate';
-  pointerId?: number;
-  pointerKind?: string;
-  clientPoint?: Point;
-  timeStamp: number;
-  clickDetail?: number;
-  consume: () => void;
-  capturePointer?: () => void;
-};
+  phase: 'pointer-down' | 'pointer-up' | 'pointer-cancel' | 'keyboard-activate'
+  pointerId?: number
+  pointerKind?: string
+  clientPoint?: Point
+  timeStamp: number
+  clickDetail?: number
+  consume: () => void
+  capturePointer?: () => void
+}
 
 export type SpatialFieldAdapterInput =
   | { type: 'present'; presentation: SpatialFieldPresentation }
@@ -46,61 +39,58 @@ export type SpatialFieldAdapterInput =
   | { type: 'replace-space'; state: SpaceState }
   | { type: 'camera-control'; control: 'fit-all' | 'reset-zoom' }
   | {
-      type: 'thought-control';
-      thoughtId: string;
-      control: ThoughtControl;
-      event: ThoughtControlEvent;
-    };
+      type: 'thought-control'
+      thoughtId: string
+      control: ThoughtControl
+      event: ThoughtControlEvent
+    }
 
 export type SpatialFieldFrame = {
-  snapshot: SpatialInteractionSnapshot;
-  effects: SpatialInteractionEffect[];
-  launchRequests: number;
-};
+  snapshot: SpatialInteractionSnapshot
+  effects: SpatialInteractionEffect[]
+  launchRequests: number
+}
 
-type EventSource = Pick<
-  Window,
-  'addEventListener' | 'removeEventListener' | 'innerWidth' | 'innerHeight'
->;
+type EventSource = Pick<Window, 'addEventListener' | 'removeEventListener' | 'innerWidth' | 'innerHeight'>
 
 export type SpatialFieldInputRuntime = {
-  mountScene: typeof mountSpatialFieldScene;
-  events: EventSource;
-  requestFrame: (callback: FrameRequestCallback) => number;
-  cancelFrame: (handle: number) => void;
-  setDelay: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
-  clearDelay: (handle: ReturnType<typeof setTimeout>) => void;
-  flushAuthoringSynchronously: boolean;
-};
+  mountScene: typeof mountSpatialFieldScene
+  events: EventSource
+  requestFrame: (callback: FrameRequestCallback) => number
+  cancelFrame: (handle: number) => void
+  setDelay: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>
+  clearDelay: (handle: ReturnType<typeof setTimeout>) => void
+  flushAuthoringSynchronously: boolean
+}
 
 export type SpatialFieldInputAdapter = {
-  mount: (host: HTMLElement) => () => void;
-  send: (input: SpatialFieldAdapterInput) => void;
-};
+  mount: (host: HTMLElement) => () => void
+  send: (input: SpatialFieldAdapterInput) => void
+}
 
 type AdapterOptions = {
-  interaction: SpatialInteraction;
-  onFrame: (frame: SpatialFieldFrame) => void;
-  onFailure: (error: unknown) => void;
-  runtime?: SpatialFieldInputRuntime;
-};
+  interaction: SpatialInteraction
+  onFrame: (frame: SpatialFieldFrame) => void
+  onFailure: (error: unknown) => void
+  runtime?: SpatialFieldInputRuntime
+}
 
-type Activation = { pointerId: number; start: Point };
-type PointerGesture = { distance: number; lastPoint: Point };
+type Activation = { pointerId: number; start: Point }
+type PointerGesture = { distance: number; lastPoint: Point }
 type LongPress = {
-  id: string;
-  pointerId: number;
-  pointerKind: string;
-  distance: number;
-  lastPoint: Point;
-  timer: ReturnType<typeof setTimeout> | null;
-};
+  id: string
+  pointerId: number
+  pointerKind: string
+  distance: number
+  lastPoint: Point
+  timer: ReturnType<typeof setTimeout> | null
+}
 
-const actionMovementThreshold = 7;
-const gestureMovementThreshold = 4;
-const longPressMovementThreshold = 4;
-const longPressDelay = 450;
-const controlClickWindow = 750;
+const actionMovementThreshold = 7
+const gestureMovementThreshold = 4
+const longPressMovementThreshold = 4
+const longPressDelay = 450
+const controlClickWindow = 750
 
 export function createSpatialFieldInputAdapter({
   interaction,
@@ -108,123 +98,110 @@ export function createSpatialFieldInputAdapter({
   onFailure,
   runtime = browserRuntime(),
 }: AdapterOptions): SpatialFieldInputAdapter {
-  let mountGeneration = 0;
-  let mounted = false;
-  let scene: MountedSpatialFieldScene | null = null;
-  let stopResize = () => {};
+  let mountGeneration = 0
+  let mounted = false
+  let scene: MountedSpatialFieldScene | null = null
+  let stopResize = () => {}
   let presentation: SpatialFieldPresentation = {
     ambientBubbleSettings: defaultAmbientBubbleSettings,
     colorMode: 'light',
-  };
-  let renderedPresentation: SpatialFieldPresentation | null = null;
-  let renderedSnapshot: SpatialInteractionSnapshot | null = null;
-  let authoringPresentation: ThoughtAuthoringPresentation | undefined;
-  let activation: Activation | null = null;
-  const pointerGestures = new Map<number, PointerGesture>();
-  let suppressDoubleClick = false;
-  let longPress: LongPress | null = null;
-  let controlClickArmedAt: number | null = null;
-  let frameHandle: number | null = null;
-  let cameraAnimationHandle: number | null = null;
-  let pendingEffects: SpatialInteractionEffect[] = [];
-  let pendingLaunchRequests = 0;
+  }
+  let renderedPresentation: SpatialFieldPresentation | null = null
+  let renderedSnapshot: SpatialInteractionSnapshot | null = null
+  let authoringPresentation: ThoughtAuthoringPresentation | undefined
+  let activation: Activation | null = null
+  const pointerGestures = new Map<number, PointerGesture>()
+  let suppressDoubleClick = false
+  let longPress: LongPress | null = null
+  let controlClickArmedAt: number | null = null
+  let frameHandle: number | null = null
+  let cameraAnimationHandle: number | null = null
+  let pendingEffects: SpatialInteractionEffect[] = []
+  let pendingLaunchRequests = 0
 
   const cancelLongPress = () => {
     if (longPress?.timer !== null && longPress?.timer !== undefined) {
-      runtime.clearDelay(longPress.timer);
+      runtime.clearDelay(longPress.timer)
     }
-    longPress = null;
-  };
+    longPress = null
+  }
 
   const emitFrame = () => {
-    if (!mounted) return;
-    const effects = pendingEffects;
-    const launchRequests = pendingLaunchRequests;
-    pendingEffects = [];
-    pendingLaunchRequests = 0;
-    onFrame({ snapshot: interaction.read(), effects, launchRequests });
-  };
+    if (!mounted) return
+    const effects = pendingEffects
+    const launchRequests = pendingLaunchRequests
+    pendingEffects = []
+    pendingLaunchRequests = 0
+    onFrame({ snapshot: interaction.read(), effects, launchRequests })
+  }
 
   const scheduleFrame = () => {
-    if (!mounted || frameHandle !== null) return;
+    if (!mounted || frameHandle !== null) return
     frameHandle = runtime.requestFrame(() => {
-      frameHandle = null;
-      emitFrame();
-    });
-  };
+      frameHandle = null
+      emitFrame()
+    })
+  }
 
   const flushFrame = () => {
-    if (frameHandle !== null) runtime.cancelFrame(frameHandle);
-    frameHandle = null;
-    emitFrame();
-  };
+    if (frameHandle !== null) runtime.cancelFrame(frameHandle)
+    frameHandle = null
+    emitFrame()
+  }
 
   const render = () => {
-    if (!scene) return;
-    scene.render(
-      presentation.ambientBubbleSettings,
-      presentation.hiddenThoughtId,
-      presentation.colorMode,
-    );
-    renderedPresentation = presentation;
-    renderedSnapshot = interaction.read();
-  };
+    if (!scene) return
+    scene.render(presentation.ambientBubbleSettings, presentation.hiddenThoughtId, presentation.colorMode)
+    renderedPresentation = presentation
+    renderedSnapshot = interaction.read()
+  }
 
   const finishTransition = (transition: SpatialInteractionTransition) => {
-    if (transition.cursor && scene) scene.canvas.style.cursor = transition.cursor;
-    if (transition.render) render();
-    if (transition.effects.length > 0) pendingEffects.push(...transition.effects);
-    if (
-      runtime.flushAuthoringSynchronously &&
-      transition.effects.some(isAuthoringRequest)
-    ) {
-      flushFrame();
-    } else scheduleFrame();
-    return transition;
-  };
+    if (transition.cursor && scene) scene.canvas.style.cursor = transition.cursor
+    if (transition.render) render()
+    if (transition.effects.length > 0) pendingEffects.push(...transition.effects)
+    if (runtime.flushAuthoringSynchronously && transition.effects.some(isAuthoringRequest)) {
+      flushFrame()
+    } else scheduleFrame()
+    return transition
+  }
 
   const cancelCameraAnimation = () => {
-    if (cameraAnimationHandle !== null) runtime.cancelFrame(cameraAnimationHandle);
-    cameraAnimationHandle = null;
-  };
+    if (cameraAnimationHandle !== null) runtime.cancelFrame(cameraAnimationHandle)
+    cameraAnimationHandle = null
+  }
 
   const dispatch = (input: SpatialInteractionInput) => {
-    cancelCameraAnimation();
-    return finishTransition(interaction.dispatch(input));
-  };
+    cancelCameraAnimation()
+    return finishTransition(interaction.dispatch(input))
+  }
 
   const pointInCanvas = (point: Point) => {
-    if (!scene) return point;
-    const rect = scene.canvas.getBoundingClientRect();
-    return { x: point.x - rect.left, y: point.y - rect.top };
-  };
+    if (!scene) return point
+    const rect = scene.canvas.getBoundingClientRect()
+    return { x: point.x - rect.left, y: point.y - rect.top }
+  }
 
   const activateControl = (control: ThoughtControl, thoughtId: string) => {
     if (control === 'delete') {
-      dispatch({ type: 'delete-selection' });
-      return;
+      dispatch({ type: 'delete-selection' })
+      return
     }
     if (control === 'edit') {
-      const thought = interaction
-        .read()
-        .state.thoughts.find(({ id }) => id === thoughtId);
-      if (!thought) return;
+      const thought = interaction.read().state.thoughts.find(({ id }) => id === thoughtId)
+      if (!thought) return
       dispatch({
         type: 'canvas-double-click',
         point: interaction.worldToScreen(thought),
-      });
+      })
     }
-  };
+  }
 
-  const sendControl = (
-    control: ThoughtControl,
-    thoughtId: string,
-    event: ThoughtControlEvent,
-  ) => {
-    event.consume();
+  const sendControl = (control: ThoughtControl, thoughtId: string, event: ThoughtControlEvent) => {
+    event.consume()
     if (event.phase === 'pointer-down') {
-      if (event.pointerId === undefined || !event.clientPoint) return;
-      event.capturePointer?.();
+      if (event.pointerId === undefined || !event.clientPoint) return
+      event.capturePointer?.()
       if (control === 'grab') {
         dispatch({
           type: 'thought-pointer-down',
@@ -234,80 +211,78 @@ export function createSpatialFieldInputAdapter({
           detachOnTap: true,
           pointerId: event.pointerId,
           pointerKind: event.pointerKind ?? '',
-        });
+        })
       } else {
-        activation = { pointerId: event.pointerId, start: event.clientPoint };
+        activation = { pointerId: event.pointerId, start: event.clientPoint }
       }
-      return;
+      return
     }
 
     if (event.phase === 'pointer-cancel') {
-      activation = null;
-      controlClickArmedAt = null;
+      activation = null
+      controlClickArmedAt = null
       if (control === 'grab' && event.pointerId !== undefined) {
         dispatch({
           type: 'surface-pointer-up',
           pointerId: event.pointerId,
           pointerKind: event.pointerKind ?? '',
-        });
+        })
       }
-      return;
+      return
     }
 
     if (event.phase === 'keyboard-activate') {
       if (event.clickDetail !== 0) {
-        controlClickArmedAt = null;
-        return;
+        controlClickArmedAt = null
+        return
       }
-      activateControl(control, thoughtId);
-      return;
+      activateControl(control, thoughtId)
+      return
     }
 
-    if (event.pointerKind !== 'mouse') controlClickArmedAt = event.timeStamp;
+    if (event.pointerKind !== 'mouse') controlClickArmedAt = event.timeStamp
     if (control === 'grab') {
       if (event.pointerId !== undefined) {
         dispatch({
           type: 'surface-pointer-up',
           pointerId: event.pointerId,
           pointerKind: event.pointerKind ?? '',
-        });
+        })
       }
-      return;
+      return
     }
-    if (event.pointerId === undefined || !event.clientPoint) return;
-    const current = activation;
-    activation = null;
+    if (event.pointerId === undefined || !event.clientPoint) return
+    const current = activation
+    activation = null
     if (
       current?.pointerId === event.pointerId &&
-      Math.hypot(
-        event.clientPoint.x - current.start.x,
-        event.clientPoint.y - current.start.y,
-      ) <= actionMovementThreshold
+      Math.hypot(event.clientPoint.x - current.start.x, event.clientPoint.y - current.start.y) <=
+        actionMovementThreshold
     ) {
-      activateControl(control, thoughtId);
+      activateControl(control, thoughtId)
     }
-  };
+  }
 
   const sendCameraControl = (control: 'fit-all' | 'reset-zoom') => {
-    cancelCameraAnimation();
-    const start = interaction.read().camera;
-    const targetTransition = interaction.dispatch({ type: control });
-    const target = targetTransition.snapshot.camera;
+    cancelCameraAnimation()
+    const start = interaction.read().camera
+    const targetTransition = interaction.dispatch({ type: control })
+    const target = targetTransition.snapshot.camera
     if (
       window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
       (start.x === target.x && start.y === target.y && start.zoom === target.zoom)
     ) {
-      finishTransition(targetTransition);
-      return;
+      finishTransition(targetTransition)
+      return
     }
 
-    const restored = interaction.dispatch({ type: 'set-camera', camera: start });
-    finishTransition({ ...restored, effects: targetTransition.effects });
-    let startedAt: number | null = null;
+    const restored = interaction.dispatch({ type: 'set-camera', camera: start })
+    finishTransition({ ...restored, effects: targetTransition.effects })
+    let startedAt: number | null = null
     const animate = (now: number) => {
-      startedAt ??= now;
-      const progress = Math.min(1, (now - startedAt) / 320);
-      const eased = 1 - Math.pow(1 - progress, 3);
+      startedAt ??= now
+      const progress = Math.min(1, (now - startedAt) / 320)
+      const eased = 1 - Math.pow(1 - progress, 3)
       finishTransition(
         interaction.dispatch({
           type: 'set-camera',
@@ -317,23 +292,18 @@ export function createSpatialFieldInputAdapter({
             zoom: start.zoom + (target.zoom - start.zoom) * eased,
           },
         }),
-      );
+      )
       if (progress < 1) {
-        cameraAnimationHandle = runtime.requestFrame(animate);
+        cameraAnimationHandle = runtime.requestFrame(animate)
       } else {
-        cameraAnimationHandle = null;
+        cameraAnimationHandle = null
       }
-    };
-    cameraAnimationHandle = runtime.requestFrame(animate);
-  };
+    }
+    cameraAnimationHandle = runtime.requestFrame(animate)
+  }
 
-  const beginLongPress = (
-    id: string,
-    point: Point,
-    pointerId: number,
-    pointerKind: string,
-  ) => {
-    if (longPress) return;
+  const beginLongPress = (id: string, point: Point, pointerId: number, pointerKind: string) => {
+    if (longPress) return
     longPress = {
       id,
       pointerId,
@@ -341,9 +311,9 @@ export function createSpatialFieldInputAdapter({
       distance: 0,
       lastPoint: point,
       timer: runtime.setDelay(() => {
-        if (!longPress) return;
-        const pending = longPress;
-        pending.timer = null;
+        if (!longPress) return
+        const pending = longPress
+        pending.timer = null
         dispatch({
           type: 'thought-pointer-down',
           id: pending.id,
@@ -351,20 +321,14 @@ export function createSpatialFieldInputAdapter({
           singular: true,
           pointerId: pending.pointerId,
           pointerKind: pending.pointerKind,
-        });
+        })
       }, longPressDelay),
-    };
-  };
+    }
+  }
 
-  const onThoughtPointerDown = (
-    id: string,
-    point: Point,
-    singular: boolean,
-    pointerId: number,
-    pointerKind = '',
-  ) => {
+  const onThoughtPointerDown = (id: string, point: Point, singular: boolean, pointerId: number, pointerKind = '') => {
     if (!pointerGestures.has(pointerId)) {
-      pointerGestures.set(pointerId, { distance: 0, lastPoint: point });
+      pointerGestures.set(pointerId, { distance: 0, lastPoint: point })
     }
     dispatch({
       type: 'thought-pointer-down',
@@ -373,266 +337,242 @@ export function createSpatialFieldInputAdapter({
       singular,
       pointerId,
       pointerKind,
-    });
-    if (singular) cancelLongPress();
-    else beginLongPress(id, point, pointerId, pointerKind);
-  };
+    })
+    if (singular) cancelLongPress()
+    else beginLongPress(id, point, pointerId, pointerKind)
+  }
 
   const attachListeners = (mountedScene: MountedSpatialFieldScene) => {
-    const { canvas } = mountedScene;
+    const { canvas } = mountedScene
     const onMove = (event: PointerEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      const gesture = pointerGestures.get(event.pointerId);
+      const rect = canvas.getBoundingClientRect()
+      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+      const gesture = pointerGestures.get(event.pointerId)
       if (gesture) {
-        gesture.distance += Math.hypot(
-          point.x - gesture.lastPoint.x,
-          point.y - gesture.lastPoint.y,
-        );
-        gesture.lastPoint = point;
+        gesture.distance += Math.hypot(point.x - gesture.lastPoint.x, point.y - gesture.lastPoint.y)
+        gesture.lastPoint = point
       }
       if (longPress?.pointerId === event.pointerId) {
-        longPress.distance += Math.hypot(
-          point.x - longPress.lastPoint.x,
-          point.y - longPress.lastPoint.y,
-        );
-        longPress.lastPoint = point;
-        if (longPress.distance >= longPressMovementThreshold) cancelLongPress();
+        longPress.distance += Math.hypot(point.x - longPress.lastPoint.x, point.y - longPress.lastPoint.y)
+        longPress.lastPoint = point
+        if (longPress.distance >= longPressMovementThreshold) cancelLongPress()
       }
       dispatch({
         type: 'surface-pointer-move',
         point,
         pointerId: event.pointerId,
         pointerKind: event.pointerType,
-      });
-    };
+      })
+    }
     const onUp = (event: PointerEvent) => {
-      if (longPress?.pointerId === event.pointerId) cancelLongPress();
-      const gesture = pointerGestures.get(event.pointerId);
+      if (longPress?.pointerId === event.pointerId) cancelLongPress()
+      const gesture = pointerGestures.get(event.pointerId)
       if (gesture?.distance && gesture.distance >= gestureMovementThreshold) {
-        suppressDoubleClick = true;
+        suppressDoubleClick = true
       }
-      pointerGestures.delete(event.pointerId);
+      pointerGestures.delete(event.pointerId)
       dispatch({
         type: 'surface-pointer-up',
         pointerId: event.pointerId,
         pointerKind: event.pointerType,
-      });
-    };
+      })
+    }
     const onClick = (event: MouseEvent) => {
-      const armedAt = controlClickArmedAt;
-      controlClickArmedAt = null;
-      if (
-        armedAt !== null &&
-        event.timeStamp >= armedAt &&
-        event.timeStamp - armedAt <= controlClickWindow
-      ) {
-        return;
+      const armedAt = controlClickArmedAt
+      controlClickArmedAt = null
+      if (armedAt !== null && event.timeStamp >= armedAt && event.timeStamp - armedAt <= controlClickWindow) {
+        return
       }
-      const rect = canvas.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect()
       dispatch({
         type: 'canvas-click',
         point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
-      });
-    };
+      })
+    }
     const onDoubleClick = (event: MouseEvent) => {
       if (suppressDoubleClick) {
-        suppressDoubleClick = false;
-        event.preventDefault();
-        return;
+        suppressDoubleClick = false
+        event.preventDefault()
+        return
       }
-      const rect = canvas.getBoundingClientRect();
+      const rect = canvas.getBoundingClientRect()
       dispatch({
         type: 'canvas-double-click',
         point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
-      });
-      event.preventDefault();
-    };
+      })
+      event.preventDefault()
+    }
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0) return;
-      suppressDoubleClick = false;
-      if (longPress && longPress.pointerId !== event.pointerId) cancelLongPress();
-      const rect = canvas.getBoundingClientRect();
-      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      pointerGestures.set(event.pointerId, { distance: 0, lastPoint: point });
+      if (event.button !== 0) return
+      suppressDoubleClick = false
+      if (longPress && longPress.pointerId !== event.pointerId) cancelLongPress()
+      const rect = canvas.getBoundingClientRect()
+      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
+      pointerGestures.set(event.pointerId, { distance: 0, lastPoint: point })
       const transition = dispatch({
         type: 'canvas-pointer-down',
         point,
         pointerId: event.pointerId,
         pointerKind: event.pointerType,
-      });
-      if (event.pointerType === 'touch' && transition.render) event.preventDefault();
-    };
+      })
+      if (event.pointerType === 'touch' && transition.render) event.preventDefault()
+    }
     const onWheel = (event: WheelEvent) => {
-      event.preventDefault();
-      const rect = canvas.getBoundingClientRect();
+      event.preventDefault()
+      const rect = canvas.getBoundingClientRect()
       dispatch({
         type: 'wheel',
         point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
         deltaY: event.deltaY,
         pinching: event.ctrlKey,
-      });
-    };
+      })
+    }
     const onKeyDown = (event: KeyboardEvent) => {
-      if (isEditableTarget(event.target)) return;
-      if (
-        event.key !== 'Enter' &&
-        event.key !== '+' &&
-        event.key !== '-' &&
-        event.key !== '0'
-      ) {
-        return;
+      if (isEditableTarget(event.target)) return
+      if (event.key !== 'Enter' && event.key !== '+' && event.key !== '-' && event.key !== '0') {
+        return
       }
-      if (event.key === 'Enter' && event.repeat) return;
-      event.preventDefault();
+      if (event.key === 'Enter' && event.repeat) return
+      event.preventDefault()
       if (event.key === 'Enter') {
-        pendingLaunchRequests += 1;
-        scheduleFrame();
+        pendingLaunchRequests += 1
+        scheduleFrame()
       } else {
-        dispatch({ type: 'key-down', key: event.key });
+        dispatch({ type: 'key-down', key: event.key })
       }
-    };
+    }
     const syncViewport = () => {
       dispatch({
         type: 'viewport-resize',
         size: { width: mountedScene.screen.width, height: mountedScene.screen.height },
-      });
-    };
+      })
+    }
 
-    runtime.events.addEventListener('pointermove', onMove as EventListener);
-    runtime.events.addEventListener('pointerup', onUp as EventListener);
-    runtime.events.addEventListener('pointercancel', onUp as EventListener);
-    runtime.events.addEventListener('keydown', onKeyDown as EventListener);
-    canvas.addEventListener('click', onClick);
-    canvas.addEventListener('dblclick', onDoubleClick);
-    canvas.addEventListener('pointerdown', onPointerDown);
-    canvas.addEventListener('wheel', onWheel, { passive: false });
-    stopResize = mountedScene.onResize(syncViewport);
-    syncViewport();
+    runtime.events.addEventListener('pointermove', onMove as EventListener)
+    runtime.events.addEventListener('pointerup', onUp as EventListener)
+    runtime.events.addEventListener('pointercancel', onUp as EventListener)
+    runtime.events.addEventListener('keydown', onKeyDown as EventListener)
+    canvas.addEventListener('click', onClick)
+    canvas.addEventListener('dblclick', onDoubleClick)
+    canvas.addEventListener('pointerdown', onPointerDown)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+    stopResize = mountedScene.onResize(syncViewport)
+    syncViewport()
 
     return () => {
-      runtime.events.removeEventListener('pointermove', onMove as EventListener);
-      runtime.events.removeEventListener('pointerup', onUp as EventListener);
-      runtime.events.removeEventListener('pointercancel', onUp as EventListener);
-      runtime.events.removeEventListener('keydown', onKeyDown as EventListener);
-      canvas.removeEventListener('click', onClick);
-      canvas.removeEventListener('dblclick', onDoubleClick);
-      canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('wheel', onWheel);
-      stopResize();
-      stopResize = () => {};
-    };
-  };
+      runtime.events.removeEventListener('pointermove', onMove as EventListener)
+      runtime.events.removeEventListener('pointerup', onUp as EventListener)
+      runtime.events.removeEventListener('pointercancel', onUp as EventListener)
+      runtime.events.removeEventListener('keydown', onKeyDown as EventListener)
+      canvas.removeEventListener('click', onClick)
+      canvas.removeEventListener('dblclick', onDoubleClick)
+      canvas.removeEventListener('pointerdown', onPointerDown)
+      canvas.removeEventListener('wheel', onWheel)
+      stopResize()
+      stopResize = () => {}
+    }
+  }
 
-  let detachListeners = () => {};
+  let detachListeners = () => {}
   const unmount = (generation: number) => {
-    if (generation !== mountGeneration || !mounted) return;
-    mounted = false;
-    detachListeners();
-    detachListeners = () => {};
-    cancelLongPress();
-    pointerGestures.clear();
-    suppressDoubleClick = false;
-    activation = null;
-    controlClickArmedAt = null;
-    if (frameHandle !== null) runtime.cancelFrame(frameHandle);
-    frameHandle = null;
-    cancelCameraAnimation();
-    pendingEffects = [];
-    pendingLaunchRequests = 0;
-    scene?.destroy();
-    scene = null;
-    renderedPresentation = null;
-    renderedSnapshot = null;
-  };
+    if (generation !== mountGeneration || !mounted) return
+    mounted = false
+    detachListeners()
+    detachListeners = () => {}
+    cancelLongPress()
+    pointerGestures.clear()
+    suppressDoubleClick = false
+    activation = null
+    controlClickArmedAt = null
+    if (frameHandle !== null) runtime.cancelFrame(frameHandle)
+    frameHandle = null
+    cancelCameraAnimation()
+    pendingEffects = []
+    pendingLaunchRequests = 0
+    scene?.destroy()
+    scene = null
+    renderedPresentation = null
+    renderedSnapshot = null
+  }
 
   return {
     mount(host) {
       if (mounted) {
-        onFailure(new Error('Spatial field input adapter is already mounted'));
-        return () => {};
+        onFailure(new Error('Spatial field input adapter is already mounted'))
+        return () => {}
       }
-      mounted = true;
-      mountGeneration += 1;
-      const generation = mountGeneration;
+      mounted = true
+      mountGeneration += 1
+      const generation = mountGeneration
       void runtime
         .mountScene(host, interaction, onThoughtPointerDown)
         .then((mountedScene) => {
           if (!mounted || generation !== mountGeneration) {
-            mountedScene.destroy();
-            return;
+            mountedScene.destroy()
+            return
           }
-          scene = mountedScene;
-          scene.presentAuthoring(authoringPresentation);
-          detachListeners = attachListeners(mountedScene);
-          if (
-            renderedSnapshot !== interaction.read() ||
-            !samePresentation(renderedPresentation, presentation)
-          ) {
-            render();
+          scene = mountedScene
+          scene.presentAuthoring(authoringPresentation)
+          detachListeners = attachListeners(mountedScene)
+          if (renderedSnapshot !== interaction.read() || !samePresentation(renderedPresentation, presentation)) {
+            render()
           }
-          scheduleFrame();
+          scheduleFrame()
         })
         .catch((error: unknown) => {
-          if (!mounted || generation !== mountGeneration) return;
-          unmount(generation);
-          onFailure(error);
-        });
-      return () => unmount(generation);
+          if (!mounted || generation !== mountGeneration) return
+          unmount(generation)
+          onFailure(error)
+        })
+      return () => unmount(generation)
     },
     send(input) {
       if (input.type === 'camera-control') {
-        sendCameraControl(input.control);
-        return;
+        sendCameraControl(input.control)
+        return
       }
       if (input.type === 'present-authoring') {
-        authoringPresentation = input.presentation;
-        scene?.presentAuthoring(authoringPresentation);
-        return;
+        authoringPresentation = input.presentation
+        scene?.presentAuthoring(authoringPresentation)
+        return
       }
       if (input.type === 'present') {
-        if (samePresentation(presentation, input.presentation)) return;
-        presentation = input.presentation;
-        if (
-          renderedSnapshot !== interaction.read() ||
-          !samePresentation(renderedPresentation, presentation)
-        ) {
-          render();
+        if (samePresentation(presentation, input.presentation)) return
+        presentation = input.presentation
+        if (renderedSnapshot !== interaction.read() || !samePresentation(renderedPresentation, presentation)) {
+          render()
         }
-        return;
+        return
       }
       if (input.type === 'thought-control') {
-        sendControl(input.control, input.thoughtId, input.event);
-        return;
+        sendControl(input.control, input.thoughtId, input.event)
+        return
       }
       if (input.type === 'replace-space') {
-        dispatch(input);
-        return;
+        dispatch(input)
+        return
       }
       if (input.type === 'launcher-open') {
-        dispatch({ type: 'launcher-open', point: input.point });
-        return;
+        dispatch({ type: 'launcher-open', point: input.point })
+        return
       }
-      dispatch(input.command);
+      dispatch(input.command)
     },
-  };
+  }
 }
 
 function isAuthoringRequest(effect: SpatialInteractionEffect) {
-  return effect.type === 'request-create' || effect.type === 'request-edit';
+  return effect.type === 'request-create' || effect.type === 'request-edit'
 }
 
-function samePresentation(
-  left: SpatialFieldPresentation | null,
-  right: SpatialFieldPresentation,
-) {
+function samePresentation(left: SpatialFieldPresentation | null, right: SpatialFieldPresentation) {
   return (
     left?.hiddenThoughtId === right.hiddenThoughtId &&
     left?.colorMode === right.colorMode &&
     left?.ambientBubbleSettings.size === right.ambientBubbleSettings.size &&
     left.ambientBubbleSettings.presence === right.ambientBubbleSettings.presence &&
     left.ambientBubbleSettings.density === right.ambientBubbleSettings.density
-  );
+  )
 }
 
 function isEditableTarget(target: EventTarget | null) {
@@ -640,7 +580,7 @@ function isEditableTarget(target: EventTarget | null) {
     typeof HTMLElement !== 'undefined' &&
     target instanceof HTMLElement &&
     target.matches('input, textarea, select, button, [contenteditable="true"]')
-  );
+  )
 }
 
 function browserRuntime(): SpatialFieldInputRuntime {
@@ -652,5 +592,5 @@ function browserRuntime(): SpatialFieldInputRuntime {
     setDelay: (callback, delay) => window.setTimeout(callback, delay),
     clearDelay: (handle) => window.clearTimeout(handle),
     flushAuthoringSynchronously: isIOSDevice(navigator),
-  };
+  }
 }

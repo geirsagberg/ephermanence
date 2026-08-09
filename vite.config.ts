@@ -1,6 +1,6 @@
-import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
-import { defineConfig } from 'vite-plus';
+import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from 'vite-plus'
 
 export default defineConfig({
   plugins: [
@@ -43,8 +43,8 @@ export default defineConfig({
     }),
   ],
   fmt: {
-    printWidth: 90,
-    semi: true,
+    printWidth: 120,
+    semi: false,
     trailingComma: 'all',
     sortPackageJson: true,
     ignorePatterns: ['dist/**'],
@@ -59,4 +59,4 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
   },
-});
+})

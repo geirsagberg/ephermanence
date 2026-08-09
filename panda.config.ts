@@ -1,4 +1,4 @@
-import { defineConfig, defineGlobalStyles } from '@pandacss/dev';
+import { defineConfig, defineGlobalStyles } from '@pandacss/dev'
 
 const globalCss = defineGlobalStyles({
   ':root': {
@@ -25,7 +25,7 @@ const globalCss = defineGlobalStyles({
     outline: '2px solid token(colors.focusRing)',
     outlineOffset: '3px',
   },
-});
+})
 
 export default defineConfig({
   preflight: true,
@@ -95,11 +95,10 @@ export default defineConfig({
           },
           to: {
             opacity: 1,
-            transform:
-              'translate(calc(-50% + var(--launch-x)), calc(-50% + var(--launch-y))) scale(1.08)',
+            transform: 'translate(calc(-50% + var(--launch-x)), calc(-50% + var(--launch-y))) scale(1.08)',
           },
         },
       },
     },
   },
-});
+})

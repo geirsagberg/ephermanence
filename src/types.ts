@@ -1,14 +1,14 @@
 export type Thought = {
-  id: string;
-  text: string;
-  x: number;
-  y: number;
-  tone: number;
-};
+  id: string
+  text: string
+  x: number
+  y: number
+  tone: number
+}
 
-export type Attachment = [string, string];
+export type Attachment = [string, string]
 
 export type SpaceState = {
-  thoughts: Thought[];
-  attachments: Attachment[];
-};
+  thoughts: Thought[]
+  attachments: Attachment[]
+}
