@@ -114,6 +114,11 @@ function createHarness(
       frames.clear()
       for (const callback of callbacks) callback(0)
     },
+    runFrame(timeStamp: number) {
+      const callbacks = [...frames.values()]
+      frames.clear()
+      for (const callback of callbacks) callback(timeStamp)
+    },
   }
 }
 
@@ -201,6 +206,43 @@ describe('spatial field input adapter', () => {
     harness.flushFrame()
 
     expect(harness.onFrame).toHaveBeenCalledOnce()
+    cleanup()
+  })
+
+  it('continues a quick empty-space pan with decaying inertia', async () => {
+    const harness = createHarness()
+    const cleanup = await mount(harness)
+    harness.flushFrame()
+
+    harness.canvas.emit('pointerdown', nativePointer({ clientX: 100, timeStamp: 0 }))
+    harness.events.emit('pointermove', nativePointer({ clientX: 130, timeStamp: 16 }))
+    harness.events.emit('pointermove', nativePointer({ clientX: 160, timeStamp: 32 }))
+    harness.events.emit('pointerup', nativePointer({ clientX: 160, timeStamp: 32 }))
+    const releasedX = harness.interaction.read().camera.x
+
+    harness.runFrame(48)
+    harness.runFrame(64)
+
+    expect(releasedX).toBe(560)
+    expect(harness.interaction.read().camera.x).toBeGreaterThan(610)
+    cleanup()
+  })
+
+  it('stops inertial panning when a new gesture begins', async () => {
+    const harness = createHarness()
+    const cleanup = await mount(harness)
+    harness.flushFrame()
+
+    harness.canvas.emit('pointerdown', nativePointer({ clientX: 100, timeStamp: 0 }))
+    harness.events.emit('pointermove', nativePointer({ clientX: 140, timeStamp: 16 }))
+    harness.events.emit('pointerup', nativePointer({ clientX: 140, timeStamp: 16 }))
+    harness.runFrame(32)
+    const interruptedX = harness.interaction.read().camera.x
+
+    harness.canvas.emit('pointerdown', nativePointer({ clientX: 200, timeStamp: 40 }))
+    harness.runFrame(48)
+
+    expect(harness.interaction.read().camera.x).toBe(interruptedX)
     cleanup()
   })
 

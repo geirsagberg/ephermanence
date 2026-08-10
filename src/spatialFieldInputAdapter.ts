@@ -61,6 +61,7 @@ export type SpatialFieldInputRuntime = {
   setDelay: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>
   clearDelay: (handle: ReturnType<typeof setTimeout>) => void
   flushAuthoringSynchronously: boolean
+  prefersReducedMotion?: () => boolean
 }
 
 export type SpatialFieldInputAdapter = {
@@ -76,7 +77,13 @@ type AdapterOptions = {
 }
 
 type Activation = { pointerId: number; start: Point }
-type PointerGesture = { distance: number; lastPoint: Point }
+type PointerGesture = {
+  distance: number
+  lastPoint: Point
+  lastTime: number
+  velocity: Point
+  panning: boolean
+}
 type LongPress = {
   id: string
   pointerId: number
@@ -91,6 +98,10 @@ const gestureMovementThreshold = 4
 const longPressMovementThreshold = 4
 const longPressDelay = 450
 const controlClickWindow = 750
+const inertialPanTimeConstant = 325
+const inertialPanMinimumSpeed = 0.05
+const inertialPanStopSpeed = 0.01
+const inertialPanMaximumSampleAge = 80
 
 export function createSpatialFieldInputAdapter({
   interaction,
@@ -171,9 +182,37 @@ export function createSpatialFieldInputAdapter({
     cameraAnimationHandle = null
   }
 
-  const dispatch = (input: SpatialInteractionInput) => {
-    cancelCameraAnimation()
+  const dispatch = (input: SpatialInteractionInput, preserveCameraAnimation = false) => {
+    if (!preserveCameraAnimation) cancelCameraAnimation()
     return finishTransition(interaction.dispatch(input))
+  }
+
+  const startInertialPan = (velocity: Point, releasedAt: number) => {
+    if (runtime.prefersReducedMotion?.() || Math.hypot(velocity.x, velocity.y) < inertialPanMinimumSpeed) return
+    let lastFrameAt = releasedAt
+    const animate = (now: number) => {
+      const elapsed = Math.max(0, Math.min(32, now - lastFrameAt))
+      lastFrameAt = now
+      const decay = Math.exp(-elapsed / inertialPanTimeConstant)
+      const camera = interaction.read().camera
+      finishTransition(
+        interaction.dispatch({
+          type: 'set-camera',
+          camera: {
+            ...camera,
+            x: camera.x + velocity.x * elapsed,
+            y: camera.y + velocity.y * elapsed,
+          },
+        }),
+      )
+      velocity = { x: velocity.x * decay, y: velocity.y * decay }
+      if (Math.hypot(velocity.x, velocity.y) > inertialPanStopSpeed) {
+        cameraAnimationHandle = runtime.requestFrame(animate)
+      } else {
+        cameraAnimationHandle = null
+      }
+    }
+    cameraAnimationHandle = runtime.requestFrame(animate)
   }
 
   const pointInCanvas = (point: Point) => {
@@ -328,7 +367,13 @@ export function createSpatialFieldInputAdapter({
 
   const onThoughtPointerDown = (id: string, point: Point, singular: boolean, pointerId: number, pointerKind = '') => {
     if (!pointerGestures.has(pointerId)) {
-      pointerGestures.set(pointerId, { distance: 0, lastPoint: point })
+      pointerGestures.set(pointerId, {
+        distance: 0,
+        lastPoint: point,
+        lastTime: 0,
+        velocity: { x: 0, y: 0 },
+        panning: false,
+      })
     }
     dispatch({
       type: 'thought-pointer-down',
@@ -349,8 +394,15 @@ export function createSpatialFieldInputAdapter({
       const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
       const gesture = pointerGestures.get(event.pointerId)
       if (gesture) {
-        gesture.distance += Math.hypot(point.x - gesture.lastPoint.x, point.y - gesture.lastPoint.y)
+        const dx = point.x - gesture.lastPoint.x
+        const dy = point.y - gesture.lastPoint.y
+        const elapsed = event.timeStamp - gesture.lastTime
+        gesture.distance += Math.hypot(dx, dy)
+        if (gesture.panning && elapsed > 0) {
+          gesture.velocity = { x: dx / elapsed, y: dy / elapsed }
+        }
         gesture.lastPoint = point
+        gesture.lastTime = event.timeStamp
       }
       if (longPress?.pointerId === event.pointerId) {
         longPress.distance += Math.hypot(point.x - longPress.lastPoint.x, point.y - longPress.lastPoint.y)
@@ -376,6 +428,13 @@ export function createSpatialFieldInputAdapter({
         pointerId: event.pointerId,
         pointerKind: event.pointerType,
       })
+      if (
+        gesture?.panning &&
+        gesture.distance >= gestureMovementThreshold &&
+        event.timeStamp - gesture.lastTime <= inertialPanMaximumSampleAge
+      ) {
+        startInertialPan(gesture.velocity, event.timeStamp)
+      }
     }
     const onClick = (event: MouseEvent) => {
       const armedAt = controlClickArmedAt
@@ -384,10 +443,13 @@ export function createSpatialFieldInputAdapter({
         return
       }
       const rect = canvas.getBoundingClientRect()
-      dispatch({
-        type: 'canvas-click',
-        point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
-      })
+      dispatch(
+        {
+          type: 'canvas-click',
+          point: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+        },
+        true,
+      )
     }
     const onDoubleClick = (event: MouseEvent) => {
       if (suppressDoubleClick) {
@@ -408,13 +470,24 @@ export function createSpatialFieldInputAdapter({
       if (longPress && longPress.pointerId !== event.pointerId) cancelLongPress()
       const rect = canvas.getBoundingClientRect()
       const point = { x: event.clientX - rect.left, y: event.clientY - rect.top }
-      pointerGestures.set(event.pointerId, { distance: 0, lastPoint: point })
+      pointerGestures.set(event.pointerId, {
+        distance: 0,
+        lastPoint: point,
+        lastTime: event.timeStamp,
+        velocity: { x: 0, y: 0 },
+        panning: false,
+      })
       const transition = dispatch({
         type: 'canvas-pointer-down',
         point,
         pointerId: event.pointerId,
         pointerKind: event.pointerType,
       })
+      const gesture = pointerGestures.get(event.pointerId)
+      if (gesture) gesture.panning = transition.cursor === 'grabbing' && pointerGestures.size === 1
+      if (pointerGestures.size > 1) {
+        for (const activeGesture of pointerGestures.values()) activeGesture.panning = false
+      }
       if (event.pointerType === 'touch' && transition.render) event.preventDefault()
     }
     const onWheel = (event: WheelEvent) => {
@@ -592,5 +665,6 @@ function browserRuntime(): SpatialFieldInputRuntime {
     setDelay: (callback, delay) => window.setTimeout(callback, delay),
     clearDelay: (handle) => window.clearTimeout(handle),
     flushAuthoringSynchronously: isIOSDevice(navigator),
+    prefersReducedMotion: () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   }
 }
