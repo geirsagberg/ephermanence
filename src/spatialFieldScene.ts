@@ -438,6 +438,22 @@ export class SpatialFieldScene extends Container {
     }
   }
 
+  hasActiveAnimations() {
+    if (
+      this.colorModeProgress !== this.colorModeTarget ||
+      (this.authoringVisual !== null && this.authoringVisual.elapsed < this.authoringVisual.duration) ||
+      this.clusterOutline.alpha !== this.clusterOutlineTargetAlpha ||
+      this.fadingBonds.size > 0 ||
+      this.fadingThoughts.size > 0
+    ) {
+      return true
+    }
+    for (const record of this.thoughtBubbles.values()) {
+      if (record.appearance < 1 || record.elevation !== record.targetElevation) return true
+    }
+    return false
+  }
+
   private applyColorMode() {
     for (const record of this.thoughtBubbles.values()) {
       drawThoughtBody(record.body, record.radius, record.tone, this.colorModeProgress)
@@ -544,15 +560,23 @@ export async function mountSpatialFieldScene(
     resizeTo: host,
     resolution: window.devicePixelRatio,
     autoDensity: true,
+    autoStart: false,
   })
   const scene = new SpatialFieldScene(onThoughtPointerDown, createThoughtShadowFilter)
   const advanceAnimations = (ticker: Ticker) => {
     scene.advanceAnimations(ticker.deltaMS)
+    if (!scene.hasActiveAnimations()) app.ticker.stop()
   }
   app.ticker.add(advanceAnimations)
   app.stage.addChild(scene)
   host.appendChild(app.canvas)
   app.canvas.setAttribute('aria-label', 'Interactive space of thought bubbles')
+
+  const draw = () => {
+    app.render()
+    if (scene.hasActiveAnimations()) app.ticker.start()
+    else app.ticker.stop()
+  }
 
   return {
     canvas: app.canvas,
@@ -577,9 +601,11 @@ export async function mountSpatialFieldScene(
         hiddenThoughtId,
         colorMode,
       )
+      draw()
     },
     presentAuthoring(presentation) {
       scene.presentAuthoring(presentation)
+      draw()
     },
     onResize(listener) {
       app.renderer.on('resize', listener)
