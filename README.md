@@ -21,6 +21,11 @@ bun run test
 bun run build
 ```
 
+Run `bash scripts/install-hooks.sh` once per clone to install the shared
+post-checkout hook. New worktrees copy `.envrc` from the first checkout that has
+one (the main checkout is checked first), leaving an existing destination alone.
+The file is gitignored. Run `direnv allow` in the new worktree to trust it.
+
 Add `?debug` to the local URL to open the sample spatial field without reading or
 changing the stored field.
 
