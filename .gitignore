@@ -6,3 +6,4 @@ dist
 styled-system
 .vercel
 .fallow/
+.envrc

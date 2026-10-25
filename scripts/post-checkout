@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Git passes an all-zero previous HEAD when creating a worktree.
+[[ "$1" =~ ^0+$ && "$3" == 1 ]] || exit 0
+
+destination="$(git rev-parse --show-toplevel)/.envrc"
+[[ ! -e "$destination" && ! -L "$destination" ]] || exit 0
+
+while IFS= read -r -d '' entry; do
+  [[ "$entry" == 'worktree '* ]] || continue
+  source="${entry#worktree }/.envrc"
+  if [[ -f "$source" ]]; then
+    cp -p "$source" "$destination"
+    break
+  fi
+done < <(git worktree list --porcelain -z)
