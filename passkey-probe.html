@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Secure sync capability probe</title>
+    <style>
+      body { font: 16px/1.5 system-ui; max-width: 46rem; margin: 3rem auto; padding: 0 1rem; }
+      textarea { box-sizing: border-box; width: 100%; min-height: 14rem; }
+      button { padding: .6rem 1rem; margin: 1rem .5rem 1rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Secure sync capability probe</h1>
+    <p>Create a disposable passkey in 1Password, then copy the encrypted probe to another browser or device on this same hostname. Choose the same synced passkey to verify decryption.</p>
+    <p>This tests PRF encryption only. It does not sign in to Supabase or read your space. Nothing is saved automatically. The probe contains ciphertext and public metadata, never the unlocking secret.</p>
+    <button id="create">Create probe</button>
+    <label for="probe">Encrypted probe</label>
+    <textarea id="probe" spellcheck="false"></textarea>
+    <button id="verify">Verify decryption</button>
+    <p id="status" role="status"></p>
+    <script type="module" src="/src/passkeyProbePage.ts"></script>
+  </body>
+</html>
