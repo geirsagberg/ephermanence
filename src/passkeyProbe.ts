@@ -83,11 +83,25 @@ async function evaluate(credentialId: string, salt: Uint8Array<ArrayBuffer>): Pr
     },
   })) as PublicKeyCredential | null
   if (!credential) throw new Error('No passkey returned.')
+  return readPrfSecret(credential)
+}
+
+export function readPrfSecret(credential: PublicKeyCredential): ArrayBuffer {
   const extensions = credential.getClientExtensionResults() as AuthenticationExtensionsClientOutputs & {
-    prf?: { results?: { first?: ArrayBuffer } }
+    prf?: { results?: { first?: ArrayBuffer | number[] } }
   }
   const secret = extensions.prf?.results?.first
-  if (!secret || secret.byteLength !== 32)
+  // 1Password can return a plain array instead of a BufferSource.
+  if (Array.isArray(secret)) {
+    if (secret.length !== 32 || !Array.from(secret).every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255))
+      throw new Error('PRF output must contain exactly 32 bytes. Capability check failed.')
+    const buffer = Uint8Array.from(secret).buffer
+    secret.fill(0)
+    return buffer
+  }
+  if (secret && secret.byteLength !== 32)
+    throw new Error(`PRF output has an unexpected byte length: ${secret.byteLength}. Capability check failed.`)
+  if (!secret)
     throw new Error('This browser/provider did not return a PRF secret. Capability check failed.')
   return secret
 }
