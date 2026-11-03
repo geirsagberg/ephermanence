@@ -29,6 +29,9 @@ The file is gitignored. Run `direnv allow` in the new worktree to trust it.
 Add `?debug` to the local URL to open the sample spatial field without reading or
 changing the stored field.
 
+The [secure sync capability spike](docs/spikes/secure-sync.md) describes the
+development-only passkey probe and the remaining verification steps.
+
 ## Hosting
 
 Run `bun run build` and publish the generated `dist` directory with any static hosting
