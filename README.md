@@ -30,7 +30,7 @@ Add `?debug` to the local URL to open the sample spatial field without reading o
 changing the stored field.
 
 The [secure sync capability spike](docs/spikes/secure-sync.md) describes the
-development-only passkey probe and the remaining verification steps.
+development-only passkey and Supabase probes, setup, and remaining verification steps.
 
 ## Hosting
 
