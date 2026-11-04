@@ -29,6 +29,16 @@ The file is gitignored. Run `direnv allow` in the new worktree to trust it.
 Add `?debug` to the local URL to open the sample spatial field without reading or
 changing the stored field.
 
+Sync development uses a local Supabase stack configured in `supabase/config.toml`,
+with passkeys for `http://localhost:5173`. It requires a Docker-compatible runtime.
+
+```sh
+bunx supabase start
+```
+
+Production uses the hosted project `ulfoxuxzaqjomwnyogdg`, with passkeys for
+`https://ephermanence.sagberg.net`.
+
 The [secure sync capability spike](docs/spikes/secure-sync.md) describes the
 development-only passkey and Supabase probes, setup, and remaining verification steps.
 
