@@ -95,8 +95,9 @@ clearing, rejected authentication and tampered ciphertext. They do not establish
 live Supabase behavior or enforcement of the SQL policies. Live verification
 requires the development project and user-approved passkey prompts.
 
-The development project `ulfoxuxzaqjomwnyogdg` is configured with passkeys enabled,
-RP ID `localhost`, and origin `http://localhost:5173`. The probe table exists;
+The spike ran against project `ulfoxuxzaqjomwnyogdg` with RP ID `localhost` and
+origin `http://localhost:5173`. That project is now the production project with RP ID
+`ephermanence.sagberg.net`, so the Supabase probe no longer runs against it. The probe table exists;
 RLS and its owner-only policy were confirmed through the Management API. The user
 completed the live ceremony and reported:
 
