@@ -284,7 +284,7 @@ function transferReleasedDragToOldestAttachedDrag(released: Drag, drags: Map<num
   for (const id of released.movingIds) recipient.movingIds.add(id)
 }
 
-function attachmentKey([a, b]: Attachment) {
+export function attachmentKey([a, b]: Attachment) {
   return a < b ? `${a}:${b}` : `${b}:${a}`
 }
 
