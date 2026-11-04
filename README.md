@@ -30,10 +30,12 @@ Add `?debug` to the local URL to open the sample spatial field without reading o
 changing the stored field.
 
 Sync development uses a local Supabase stack configured in `supabase/config.toml`,
-with passkeys for `http://localhost:5173`. It requires a Docker-compatible runtime.
+with passkeys for `http://localhost:5173`. It requires the Supabase CLI and a
+Docker-compatible runtime, such as Colima.
 
 ```sh
-bunx supabase start
+colima start
+supabase start
 ```
 
 Production uses the hosted project `ulfoxuxzaqjomwnyogdg`, with passkeys for
