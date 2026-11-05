@@ -7,7 +7,9 @@ const status = document.querySelector<HTMLParagraphElement>('#status')!
 const buttons = document.querySelectorAll<HTMLButtonElement>('button')
 
 async function run(enroll: boolean) {
-  buttons.forEach((button) => { button.disabled = true })
+  buttons.forEach((button) => {
+    button.disabled = true
+  })
   status.textContent = 'Waiting for Supabase and 1Password…'
   let client: ReturnType<typeof probeClient> | undefined
   try {
@@ -27,7 +29,9 @@ async function run(enroll: boolean) {
     status.textContent = error instanceof Error ? error.message : 'Probe failed.'
   } finally {
     if (client) await client.auth.signOut({ scope: 'local' })
-    buttons.forEach((button) => { button.disabled = false })
+    buttons.forEach((button) => {
+      button.disabled = false
+    })
   }
 }
 
@@ -35,4 +39,6 @@ document.querySelector<HTMLFormElement>('#enroll')!.onsubmit = (event) => {
   event.preventDefault()
   void run(true)
 }
-document.querySelector<HTMLButtonElement>('#verify')!.onclick = () => { void run(false) }
+document.querySelector<HTMLButtonElement>('#verify')!.onclick = () => {
+  void run(false)
+}

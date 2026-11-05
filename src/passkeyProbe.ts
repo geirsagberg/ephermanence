@@ -101,8 +101,7 @@ export function readPrfSecret(credential: PublicKeyCredential): ArrayBuffer {
   }
   if (secret && secret.byteLength !== 32)
     throw new Error(`PRF output has an unexpected byte length: ${secret.byteLength}. Capability check failed.`)
-  if (!secret)
-    throw new Error('This browser/provider did not return a PRF secret. Capability check failed.')
+  if (!secret) throw new Error('This browser/provider did not return a PRF secret. Capability check failed.')
   return secret
 }
 

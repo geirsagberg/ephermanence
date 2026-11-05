@@ -15,7 +15,14 @@ describe('PRF capability probe', () => {
     get.mockResolvedValue({ getClientExtensionResults: () => ({ prf: { results: { first: arraySecret } } }) })
     await expect(verifyProbe(probe)).resolves.toBeUndefined()
     expect(arraySecret.every((byte) => byte === 0)).toBe(true)
-    for (const invalid of [Array(31).fill(0), Array(32).fill(256), Array(32).fill(-1), Array(32).fill(1.5), Array(32).fill('0'), Array(32)]) {
+    for (const invalid of [
+      Array(31).fill(0),
+      Array(32).fill(256),
+      Array(32).fill(-1),
+      Array(32).fill(1.5),
+      Array(32).fill('0'),
+      Array(32),
+    ]) {
       get.mockResolvedValue({ getClientExtensionResults: () => ({ prf: { results: { first: invalid } } }) })
       await expect(verifyProbe(probe)).rejects.toThrow('PRF output must contain exactly 32 bytes')
     }
