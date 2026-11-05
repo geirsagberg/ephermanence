@@ -805,6 +805,23 @@ describe('spatial field interaction', () => {
     expect(memory.writes()).toBe(1)
   })
 
+  it('persists a synced space without moving the camera', () => {
+    const memory = memoryStorage()
+    const spatialInteraction = createSpatialInteraction(
+      { thoughts: [thought('old', 0)], attachments: [] },
+      memory.storage,
+    )
+    spatialInteraction.dispatch({ type: 'viewport-resize', size: { width: 1000, height: 800 } })
+    spatialInteraction.dispatch({ type: 'wheel', point: { x: 500, y: 400 }, deltaY: -300, pinching: false })
+    const camera = spatialInteraction.read().camera
+    const synced = { thoughts: [thought('old', 0), thought('remote', 400)], attachments: [] }
+
+    spatialInteraction.dispatch({ type: 'sync-space', state: synced })
+
+    expect(spatialInteraction.read().camera).toEqual(camera)
+    expect(JSON.parse(memory.read()!)).toEqual(synced)
+  })
+
   it('centers imported Thoughts at default zoom', () => {
     const spatialInteraction = interaction([thought('old', 0, 0)])
     spatialInteraction.dispatch({
