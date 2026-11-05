@@ -37,6 +37,7 @@ export type SpatialFieldAdapterInput =
   | { type: 'authoring-command'; command: ThoughtAuthoringCommand }
   | { type: 'launcher-open'; point: Point }
   | { type: 'replace-space'; state: SpaceState }
+  | { type: 'sync-space'; state: SpaceState }
   | { type: 'camera-control'; control: 'fit-all' | 'reset-zoom' }
   | {
       type: 'thought-control'
@@ -621,7 +622,7 @@ export function createSpatialFieldInputAdapter({
         sendControl(input.control, input.thoughtId, input.event)
         return
       }
-      if (input.type === 'replace-space') {
+      if (input.type === 'replace-space' || input.type === 'sync-space') {
         dispatch(input)
         return
       }

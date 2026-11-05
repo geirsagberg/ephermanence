@@ -48,6 +48,7 @@ export type SpatialInteractionInput =
   | { type: 'viewport-resize'; size: Size }
   | { type: 'launcher-open'; point: Point }
   | { type: 'replace-space'; state: SpaceState }
+  | { type: 'sync-space'; state: SpaceState }
 
 export type SpatialInteractionEffect =
   | {
@@ -298,6 +299,11 @@ export function createSpatialInteraction(
           if (viewportInitialized && input.state.thoughts.length > 0) {
             centerThoughtsAtDefault(camera, input.state.thoughts, viewport)
           }
+          return finish([], field.read() !== before, undefined, true)
+        }
+        case 'sync-space': {
+          const before = field.read()
+          field.dispatch({ type: 'replace-space', state: input.state })
           return finish([], field.read() !== before, undefined, true)
         }
         default: {

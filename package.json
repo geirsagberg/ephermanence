@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
-    "check": "vp check src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts panda.config.ts",
-    "format": "vp fmt src/*.ts src/*.tsx src/components/*.tsx src/*.css vite.config.ts panda.config.ts --write",
+    "check": "vp check src/*.ts src/*.tsx src/components/*.tsx src/sync/*.ts src/sync/*.tsx src/*.css vite.config.ts panda.config.ts",
+    "format": "vp fmt src/*.ts src/*.tsx src/components/*.tsx src/sync/*.ts src/sync/*.tsx src/*.css vite.config.ts panda.config.ts --write",
     "prepare": "panda codegen",
     "preview": "vp preview",
     "test": "vp test"

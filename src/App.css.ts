@@ -113,7 +113,7 @@ export const wordmarkItemsClass = css({
   visibility: 'hidden',
   transition: 'height 240ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease, visibility 0s linear 240ms',
   '[data-open] &': {
-    height: '111px',
+    height: 'calc(var(--menu-items) * 35px + 6px)',
     opacity: 1,
     visibility: 'visible',
     transitionDelay: '0ms',

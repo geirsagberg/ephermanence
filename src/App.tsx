@@ -1,6 +1,6 @@
 import { Provider, useAtom, useAtomValue, useSetAtom } from 'jotai'
-import { Download, Moon, Upload } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Cloud, Download, LogOut, Moon, Upload } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 
 import {
   appHeaderClass,
@@ -41,6 +41,8 @@ import { hasThoughtAttachment } from './thoughtActions'
 import { thoughtRadius } from './thoughtTextLayout'
 import { composerScaleForThought } from './thoughtTransition'
 import type { SpaceState } from './types'
+import { SyncDialog, useSyncStatus } from './sync/SyncDialog'
+import { createSyncRuntime, readSyncConfig, type SyncRuntime } from './sync/syncRuntime'
 
 type ColorMode = 'light' | 'dark'
 
@@ -49,13 +51,16 @@ function WordmarkMenu({
   onColorModeChange,
   onExport,
   onImport,
+  sync,
 }: {
   colorMode: ColorMode
   onColorModeChange: (mode: ColorMode) => void
   onExport: () => void
   onImport: (space: SpaceState) => boolean
+  sync: SyncRuntime | null
 }) {
   const [open, setOpen] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -90,7 +95,12 @@ function WordmarkMenu({
         <span className={wordmarkOrbClass} />
         <span>ephermanence</span>
       </button>
-      <div className={wordmarkItemsClass} role="menu" aria-hidden={!open}>
+      <div
+        className={wordmarkItemsClass}
+        style={{ '--menu-items': sync ? 4 : 3 } as CSSProperties}
+        role="menu"
+        aria-hidden={!open}
+      >
         <button
           type="button"
           className={themeChoiceClass}
@@ -128,6 +138,17 @@ function WordmarkMenu({
           <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
           <span>Import</span>
         </button>
+        {sync && (
+          <SyncMenuItem
+            sync={sync}
+            tabIndex={open ? 0 : -1}
+            onSetUp={() => {
+              setOpen(false)
+              setSyncOpen(true)
+            }}
+            onSignOut={() => setOpen(false)}
+          />
+        )}
       </div>
       <input
         ref={fileInputRef}
@@ -153,7 +174,53 @@ function WordmarkMenu({
           }
         }}
       />
+      {sync && <SyncDialog sync={sync} open={syncOpen} onClose={() => setSyncOpen(false)} />}
     </div>
+  )
+}
+
+function SyncMenuItem({
+  sync,
+  tabIndex,
+  onSetUp,
+  onSignOut,
+}: {
+  sync: SyncRuntime
+  tabIndex: number
+  onSetUp: () => void
+  onSignOut: () => void
+}) {
+  const status = useSyncStatus(sync)
+  const connected = status.type === 'connected'
+
+  const signOut = async () => {
+    const pending = await sync.hasPendingChanges()
+    const message = pending
+      ? 'Some changes have not synced and will be lost. Sign out and remove your space from this device?'
+      : 'Sign out and remove your space from this device?'
+    if (window.confirm(message)) await sync.signOut()
+  }
+
+  return (
+    <button
+      type="button"
+      className={menuActionClass}
+      role="menuitem"
+      tabIndex={tabIndex}
+      disabled={status.type === 'loading'}
+      onClick={() => {
+        if (!connected) return onSetUp()
+        onSignOut()
+        void signOut()
+      }}
+    >
+      {connected ? (
+        <LogOut size={16} strokeWidth={1.5} aria-hidden="true" />
+      ) : (
+        <Cloud size={16} strokeWidth={1.5} aria-hidden="true" />
+      )}
+      <span>{connected ? 'Sign out' : 'Sync'}</span>
+    </button>
   )
 }
 
@@ -194,6 +261,7 @@ function AppView({ runtime }: { runtime: AppRuntime }) {
             <WordmarkMenu
               colorMode={colorMode}
               onColorModeChange={setColorMode}
+              sync={runtime.sync}
               onExport={() => downloadSpace(runtime.interaction.read().state)}
               onImport={(space) => {
                 if (
@@ -295,7 +363,18 @@ function ConnectedSpatialThoughtComposer({
 function createAppRuntime() {
   const search = window.location.search
   const storage = readStorage(search)
-  const interaction = createSpatialInteraction(spaceForQuery(search), storage)
+  const syncConfig = storage && readSyncConfig()
+  let sync: SyncRuntime | null = null
+  const interaction = createSpatialInteraction(
+    spaceForQuery(search),
+    storage && {
+      getItem: (key) => storage.getItem(key),
+      setItem: (key, value) => {
+        storage.setItem(key, value)
+        sync?.localChanged()
+      },
+    },
+  )
   const authoring = createThoughtAuthoring()
   let fieldInput: SpatialFieldInputAdapter
   const state = createAppState({
@@ -309,7 +388,19 @@ function createAppRuntime() {
     onFrame: (frame) => state.acceptFieldFrame(frame),
     onFailure: (error) => console.error('Spatial field failed to start', error),
   })
-  return { state, interaction, authoring, fieldInput }
+  if (syncConfig) {
+    sync = createSyncRuntime(syncConfig, {
+      read: () => interaction.read().state,
+      apply: (space) => {
+        // Replacing the space would cancel a drag. Its pointer-up saves and syncs again.
+        if (interaction.read().isDragging) return false
+        fieldInput.send({ type: 'sync-space', state: space })
+        return true
+      },
+      clear: () => fieldInput.send({ type: 'replace-space', state: { thoughts: [], attachments: [] } }),
+    })
+  }
+  return { state, interaction, authoring, fieldInput, sync }
 }
 
 function readStorage(search: string): SpaceStorage | null {
