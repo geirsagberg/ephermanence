@@ -34,7 +34,7 @@ export function createSyncRuntime(
   let status: SyncStatus = { type: 'loading' }
   let sync: SpaceSync | null = null
   let timer: number | undefined
-  let refreshing = Promise.resolve()
+  let queue = Promise.resolve()
 
   const setStatus = (next: SyncStatus) => {
     status = next
@@ -51,35 +51,45 @@ export function createSyncRuntime(
     }, delay)
   }
 
-  const refresh = () => {
-    refreshing = refreshing
-      .catch(() => {})
-      .then(async () => {
-        const { data } = await client.auth.getSession()
-        const userId = data.session?.user.id
-        const state = await vault.load()
-        sync = null
-        if (!userId) return setStatus({ type: 'signed-out' })
-        if (state && state.userId !== userId) {
-          // This device holds another account's space. Never mix the two.
-          await client.auth.signOut({ scope: 'local' })
-          return setStatus({ type: 'signed-out' })
-        }
-        if (!state) {
-          const hasSpace = await supabaseRemote(client, userId)
-            .load()
-            .then(
-              (existing) => existing !== null,
-              () => false,
-            )
-          return setStatus({ type: 'setup', hasSpace })
-        }
-        sync = createSpaceSync(userId, supabaseRemote(client, userId), vault, local)
-        setStatus({ type: 'connected' })
-        schedule(0)
-      })
-    return refreshing
+  // Refresh and sign-out replace `sync`, so they run one at a time.
+  const exclusive = (task: () => Promise<void>) => {
+    queue = queue.catch(() => {}).then(task)
+    return queue
   }
+
+  // A replaced sync could otherwise still write to the vault or local space.
+  const stopSync = async () => {
+    window.clearTimeout(timer)
+    const stopping = sync?.stop()
+    sync = null
+    await stopping
+  }
+
+  const refresh = () =>
+    exclusive(async () => {
+      const { data } = await client.auth.getSession()
+      const userId = data.session?.user.id
+      await stopSync()
+      const state = await vault.load()
+      if (!userId) return setStatus({ type: 'signed-out' })
+      if (state && state.userId !== userId) {
+        // This device holds another account's space. Never mix the two.
+        await client.auth.signOut({ scope: 'local' })
+        return setStatus({ type: 'signed-out' })
+      }
+      if (!state) {
+        const hasSpace = await supabaseRemote(client, userId)
+          .load()
+          .then(
+            (existing) => existing !== null,
+            () => false,
+          )
+        return setStatus({ type: 'setup', hasSpace })
+      }
+      sync = createSpaceSync(userId, supabaseRemote(client, userId), vault, local)
+      setStatus({ type: 'connected' })
+      schedule(0)
+    })
 
   const connect = async ({ userId, prfSecret }: { userId: string; prfSecret: ArrayBuffer }) => {
     try {
@@ -138,13 +148,12 @@ export function createSyncRuntime(
     hasPendingChanges: async () => (sync ? sync.hasPendingChanges() : false),
     /** Removes the space key, session, merge base and local space from this device. */
     signOut: async () => {
-      window.clearTimeout(timer)
-      const stopping = sync?.stop()
-      sync = null
-      await stopping
-      await vault.clear()
-      local.clear()
-      await client.auth.signOut({ scope: 'local' })
+      await exclusive(async () => {
+        await stopSync()
+        await vault.clear()
+        local.clear()
+        await client.auth.signOut({ scope: 'local' })
+      })
       await refresh()
     },
   }
