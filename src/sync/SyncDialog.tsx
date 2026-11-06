@@ -18,6 +18,13 @@ export function SyncDialog({ sync, open, onClose }: { sync: SyncRuntime; open: b
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (status.type !== 'signed-out') {
+      setCodeSent(false)
+      setCode('')
+    }
+  }, [status.type])
+
+  useEffect(() => {
     const dialog = dialogRef.current
     if (open && status.type !== 'connected') {
       if (!dialog?.open) dialog?.showModal()

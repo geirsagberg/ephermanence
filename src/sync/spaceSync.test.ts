@@ -239,6 +239,25 @@ describe('encrypted space sync', () => {
     expect(first.local.read().thoughts.map(({ id }) => id)).toEqual(['a', 'b'])
   })
 
+  it('writes nothing to the device after it is stopped mid-sync', async () => {
+    const server = createServer()
+    const secret = prfSecret()
+    const first = await createDevice(server, secret, space([thought('a', 'Remote')]))
+    await first.sync.sync()
+    const second = await createDevice(server, secret, space([thought('b', 'Local')]))
+    const before = second.vault.state()
+
+    let stopping: Promise<void> | undefined
+    server.onNextLoad(() => {
+      stopping = second.sync.stop()
+    })
+    await second.sync.sync()
+    await stopping
+
+    expect(second.local.read()).toEqual(space([thought('b', 'Local')]))
+    expect(second.vault.state()).toBe(before)
+  })
+
   it('refuses tampered ciphertext and leaves local work in place', async () => {
     const server = createServer()
     const secret = prfSecret()
