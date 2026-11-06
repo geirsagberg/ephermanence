@@ -24,7 +24,7 @@ export async function registerPasskey(client: SupabaseClient): Promise<string> {
   if (!credential) throw new Error('No passkey was created.')
   // Stop before Supabase stores a passkey that could never unlock the space.
   const { prf } = credential.getClientExtensionResults() as { prf?: { enabled?: boolean } }
-  if (prf?.enabled === false) throw new Error('This browser or passkey provider does not support encrypted sync.')
+  if (prf?.enabled !== true) throw new Error('This browser or passkey provider does not support encrypted sync.')
   const verified = await client.auth.passkey.verifyRegistration({
     challengeId: data.challenge_id,
     credential: registrationPayload(credential),

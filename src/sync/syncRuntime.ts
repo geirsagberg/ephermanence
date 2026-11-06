@@ -139,7 +139,9 @@ export function createSyncRuntime(
     /** Removes the space key, session, merge base and local space from this device. */
     signOut: async () => {
       window.clearTimeout(timer)
+      const stopping = sync?.stop()
       sync = null
+      await stopping
       await vault.clear()
       local.clear()
       await client.auth.signOut({ scope: 'local' })

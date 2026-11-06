@@ -98,12 +98,15 @@ describe('passkey sign-in', () => {
     await expect(signInWithPasskey(client)).rejects.toThrow('does not support encrypted sync')
   })
 
-  it('does not register a passkey whose provider reports no PRF support', async () => {
-    const { client, requests } = harness({ enabled: false })
-    await client.auth.signInWithPassword({ email: user.email, password: 'signed-in' })
-    await expect(registerPasskey(client)).rejects.toThrow('does not support encrypted sync')
-    expect(requests.some((request) => request.includes('/registration/verify'))).toBe(false)
-  })
+  it.each([{ enabled: false }, {}, undefined])(
+    'does not register a passkey unless its provider confirms PRF support (%o)',
+    async (prf) => {
+      const { client, requests } = harness(prf)
+      await client.auth.signInWithPassword({ email: user.email, password: 'signed-in' })
+      await expect(registerPasskey(client)).rejects.toThrow('does not support encrypted sync')
+      expect(requests.some((request) => request.includes('/registration/verify'))).toBe(false)
+    },
+  )
 
   it('rejects a failed server verification', async () => {
     const { client } = harness(

@@ -60,11 +60,14 @@ export type SpaceSync = {
   sync: () => Promise<void>
   /** Whether local work has not reached the remote yet. */
   hasPendingChanges: () => Promise<boolean>
+  /** Stops syncing and waits for the sync in progress. Nothing is written locally afterwards. */
+  stop: () => Promise<void>
 }
 
 export function createSpaceSync(userId: string, remote: SpaceRemote, vault: SyncVault, local: LocalSpace): SpaceSync {
   let running: Promise<void> | null = null
   let queued: Promise<void> | null = null
+  let stopped = false
 
   const syncOnce = async () => {
     const state = await vault.load()
@@ -94,9 +97,11 @@ export function createSpaceSync(userId: string, remote: SpaceRemote, vault: Sync
       if (!isSameSpace(merged, localSpace)) {
         const current = local.read()
         const next = current === localSpace ? merged : mergeSpaces(localSpace, current, merged)
+        if (stopped) return
         // Keep the old base, so the next sync merges the uploaded space again instead of overwriting it.
         if (!local.apply(next)) return
       }
+      if (stopped) return
       await vault.save({ ...state, base: { revision, space: merged } })
       return
     }
@@ -104,6 +109,7 @@ export function createSpaceSync(userId: string, remote: SpaceRemote, vault: Sync
   }
 
   const sync = (): Promise<void> => {
+    if (stopped) return Promise.resolve()
     if (!running) {
       running = syncOnce().finally(() => {
         running = null
@@ -125,6 +131,10 @@ export function createSpaceSync(userId: string, remote: SpaceRemote, vault: Sync
       const state = await vault.load()
       if (!state?.base) return local.read().thoughts.length > 0
       return !isSameSpace(local.read(), state.base.space)
+    },
+    async stop() {
+      stopped = true
+      await (queued ?? running)?.catch(() => {})
     },
   }
 }
